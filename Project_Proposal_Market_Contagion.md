@@ -24,16 +24,16 @@
 
 | Role | Name |
 | :--- | :--- |
-| Corresponding author | [Name 1] |
-| Member | [Name 2] |
+| Author | Utkarsh Saraogi |
+| Author | Sidney Ma |
 
 ---
 
 ## 2. Code Repository
 
-**Link:** [github.com/&lt;team&gt;/market-contagion](https://github.com/)
+**Link:** [https://github.com/utkarsh1610-s/Predicting-Stock-Volatility-from-Related-Stocks](https://github.com/)
 
-- Private repository; access granted to the instructor and TAs only.
+- Private repository; access granted to the instructor only.
 - All model code is written by us.
 - Anything borrowed, including ideas from the GNNHAR paper, is cited in the report.
 
@@ -192,7 +192,7 @@ The core result is ready by **week 2** (HAR with vs. without neighbor features).
 
 ### 5.1 Weekly plan
 
-| Week | [Name 1] | [Name 2] |
+| Week | Utkarsh | Sidney |
 | :---: | :--- | :--- |
 | 1 | Download and save all data; compute volatility targets; set up splits | Build sector and correlation graphs; set up repo |
 | | *Both:* read the GNNHAR paper | |
