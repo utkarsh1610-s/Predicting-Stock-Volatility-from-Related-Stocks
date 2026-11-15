@@ -31,7 +31,7 @@
 
 ## 2. Code Repository
 
-**Link:** [https://github.com/utkarsh1610-s/Predicting-Stock-Volatility-from-Related-Stocks](https://github.com/)
+**Link:** [https://github.com/utkarsh1610-s/Predicting-Stock-Volatility-from-Related-Stocks](https://github.com/utkarsh1610-s/Predicting-Stock-Volatility-from-Related-Stocks)
 
 - Private repository; access granted to the instructor only.
 - All model code is written by us.
