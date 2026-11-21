@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+.DS_Store
+# data is a frozen local snapshot; rebuild with the scripts below
+data/
+*.zip
