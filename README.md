@@ -34,6 +34,7 @@ Run from the project root with the venv active:
 | 1 | `scripts/download_prices.py` | `data/raw_full/<TICKER>.csv`, one per stock plus `VIX.csv` |
 | check | `scripts/verify_data.py` | compares the raw snapshot with `data/MANIFEST.sha256` |
 | 2 | `scripts/clean.py` | `data/processed/{stocks,vix}.parquet`, `cleaning_log.csv`, `wide_range_days.csv` |
+| 3 | `scripts/features.py` | `data/features/panel.parquet`, `winsor_bounds.json` |
 
 Settings shared by all steps live in `scripts/config.py`.
 
@@ -61,6 +62,25 @@ Settings shared by all steps live in `scripts/config.py`.
    but produce extreme volatility values; handle them in the feature step (e.g. winsorize).
 
 Result: 499 tickers, 1,878,794 rows; 480 / 490 / 499 stocks in train / val / test.
+
+## Features and target (`scripts/features.py`)
+
+One row per ticker per trading day. Target `y` is **next-day log Garman-Klass volatility**.
+Inputs: `har_1/5/22` (log of mean volatility over the last 1/5/22 days), `ret`, `dlogvol`,
+`vix`, plus `lv` (today's log volatility) and `sector`.
+
+- **No lookahead.** Every feature at day *t* uses data up to day *t* only; `y` is the one
+  forward-looking column. `tests/test_features.py` checks this by perturbing the future.
+- **Split by the date of `y`**, not of the features. The 2019-12-31 row has a 2020 label,
+  so it is validation and never trains a model.
+- **Winsorization** of daily log volatility at the 0.1% / 99.9% quantiles, with bounds taken
+  from the **training split only** (`winsor_bounds.json`). `y` is the winsorized value, so
+  all models are scored on the same clipped target; QLIKE needs variance, i.e. `exp(2 * y)`.
+- **Gaps.** Windows need every day, so a missing trading day removes the rows whose
+  features or label touch it (554 rows on this snapshot, on top of the 22 rows per ticker
+  lost to warm-up and the unlabeled last day).
+
+Result: 499 tickers, 1,867,262 rows; train 1,125,805, val 245,001, test 496,456.
 
 ## Known limitations (for the report)
 
