@@ -8,6 +8,7 @@ CONSTITUENTS = Path("data/sp500_constituents.csv")
 RAW_WIKI_DIR = Path("data/raw_wiki")
 RAW_PRICE_DIR = Path("data/raw_full")
 PROCESSED_DIR = Path("data/processed")
+FEATURES_DIR = Path("data/features")
 RUN_LOG = Path("data/run_info.txt")
 
 VIX = "^VIX"
@@ -33,3 +34,14 @@ LISTING_STARTS = {
 
 def price_path(ticker):
     return RAW_PRICE_DIR / f"{ticker.replace('^', '')}.csv"
+
+
+# Time splits, assigned by the date of the value being predicted (see features.py)
+SPLITS = {"train": ("2010-01-01", "2019-12-31"),
+          "val":   ("2020-01-01", "2021-12-31"),
+          "test":  ("2022-01-01", "2025-12-31")}
+
+# HAR lookback windows (trading days) and winsorization of daily log-volatility,
+# with bounds estimated on the training split only
+HAR_WINDOWS = (1, 5, 22)
+WINSOR_Q = (0.001, 0.999)

@@ -11,7 +11,7 @@ volatility target, filling small gaps) belong in the feature step.
 """
 import pandas as pd
 
-from config import (CONSTITUENTS, LISTING_STARTS, MIN_ROWS, PROCESSED_DIR, PX, VIX,
+from config import (CONSTITUENTS, LISTING_STARTS, MIN_ROWS, PROCESSED_DIR, PX, SPLITS, VIX,
                     price_path)
 
 WIDE_RANGE = 1.5   # high/low ratio worth a manual look
@@ -122,10 +122,9 @@ def build():
     print(kept.nlargest(8, "missing_trading_days")[
         ["ticker", "first_date", "rows_clean", "missing_trading_days"]].to_string(index=False))
     print(f"\nWide-range days kept for review: {len(wide)}")
-    for name, (a, b) in {"train": ("2010", "2019"), "val": ("2020", "2021"),
-                         "test": ("2022", "2025")}.items():
-        sub = stocks[(stocks["date"] >= a) & (stocks["date"] <= f"{b}-12-31")]
-        print(f"{name} {a}-{b}: {sub['ticker'].nunique()} stocks")
+    for name, (a, b) in SPLITS.items():
+        sub = stocks[(stocks["date"] >= a) & (stocks["date"] <= b)]
+        print(f"{name} {a[:4]}-{b[:4]}: {sub['ticker'].nunique()} stocks")
 
 
 if __name__ == "__main__":
