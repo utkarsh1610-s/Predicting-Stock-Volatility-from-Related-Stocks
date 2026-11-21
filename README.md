@@ -35,6 +35,7 @@ Run from the project root with the venv active:
 | check | `scripts/verify_data.py` | compares the raw snapshot with `data/MANIFEST.sha256` |
 | 2 | `scripts/clean.py` | `data/processed/{stocks,vix}.parquet`, `cleaning_log.csv`, `wide_range_days.csv` |
 | 3 | `scripts/features.py` | `data/features/panel.parquet`, `winsor_bounds.json` |
+| 4 | `scripts/graphs.py` | `data/graphs/{sector,corr}_edges.parquet`, `data/features/neighbors.parquet` |
 
 Settings shared by all steps live in `scripts/config.py`.
 
@@ -82,6 +83,29 @@ Inputs: `har_1/5/22` (log of mean volatility over the last 1/5/22 days), `ret`, 
 
 Result: 499 tickers, 1,867,262 rows; train 1,125,805, val 245,001, test 496,456.
 
+## Graphs and neighbor features (`scripts/graphs.py`)
+
+Two ways to define "related stocks", each turned into neighbor features aligned row for row
+with `panel.parquet` (merge on `ticker`, `date`):
+
+- **Sector graph** (fixed): every other stock in the same GICS sector (20-80 peers).
+  Features `sec_har_1/5/22` = mean of the peers' `har_*` on the same day; `sec_n` = how many peers had data.
+- **Correlation graph** (rebuilt monthly): the 10 stocks whose daily returns correlated
+  most with it over the 60 trading days **before** the month starts. Features `cor_har_1/5/22`, `cor_n`.
+  About half of the correlation neighbors are in the same sector, so the two graphs do differ.
+
+Rules, all tested in `tests/test_graphs.py`:
+
+- **No lookahead.** A month's graph never sees any day it is applied to. Neighbor values are
+  same-day, never later.
+- **Pairwise-complete correlation.** A pair needs 40 shared days in the window. A stock with
+  fewer (new listings; every stock in Feb-Mar 2010) has no neighbors that month.
+- **Missing neighbor data.** A neighbor counts on a day only if it has `har_*` that day, and
+  the neighbor mean is NaN if none do. Neighbor availability does not depend on whether
+  tomorrow's label exists.
+- **NaNs are not filled.** 1% of rows have no `cor_*` features (early 2010, new listings). When comparing a
+  model with and without neighbors, score both on the rows where the neighbor features exist.
+
 ## Known limitations (for the report)
 
 - **Survivorship bias.** The universe is the November 2026 S&P 500 list. Firms that left
@@ -94,5 +118,5 @@ Result: 499 tickers, 1,867,262 rows; train 1,125,805, val 245,001, test 496,456.
 
 ## Layout
 
-- `scripts/`: the data pipeline
+- `scripts/`: the data pipeline, features and graphs
 - `tests/`: unit tests (`pytest`)
