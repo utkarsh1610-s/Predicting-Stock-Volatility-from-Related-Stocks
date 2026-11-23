@@ -44,9 +44,9 @@ def assign_split(dates):
     return out
 
 
-def winsor_bounds(lv, dates):
+def winsor_bounds(lv, dates, q=WINSOR_Q):
     train = lv[(dates >= SPLITS["train"][0]) & (dates <= SPLITS["train"][1])]
-    return tuple(float(train.quantile(q)) for q in WINSOR_Q)
+    return tuple(float(train.quantile(x)) for x in q)
 
 
 def _ticker_features(g, calendar, lo, hi):
@@ -65,7 +65,7 @@ def _ticker_features(g, calendar, lo, hi):
     return out
 
 
-def compute_features(stocks, vix):
+def compute_features(stocks, vix, winsor_q=WINSOR_Q):
     """Features for every ticker-day, before any label-based filtering.
 
     Returns (rows, bounds). Rows still containing NaN (warm-up, gaps, last day) are kept
@@ -75,7 +75,7 @@ def compute_features(stocks, vix):
     calendar = pd.DatetimeIndex(sorted(vix["date"]))
     stocks = stocks.copy()
     stocks["lv"] = garman_klass_logvol(stocks)
-    lo, hi = winsor_bounds(stocks["lv"], stocks["date"])
+    lo, hi = winsor_bounds(stocks["lv"], stocks["date"], winsor_q)
 
     parts = []
     for tkr, g in stocks.groupby("ticker", sort=True):
@@ -85,12 +85,17 @@ def compute_features(stocks, vix):
     rows = pd.concat(parts, ignore_index=True)
     rows = rows.merge(vix.rename(columns={"vix_close": "vix"}), on="date", how="left")
     rows = rows.merge(stocks[["ticker", "sector"]].drop_duplicates(), on="ticker")
-    return rows, {"winsor_lo": lo, "winsor_hi": hi, "quantiles": list(WINSOR_Q)}
+    return rows, {"winsor_lo": lo, "winsor_hi": hi, "quantiles": list(winsor_q)}
 
 
-def build_panel(stocks, vix):
+def build_panel(stocks, vix, winsor_q=WINSOR_Q):
     """stocks: processed stocks table; vix: processed vix table. Returns (panel, bounds)."""
-    rows, bounds = compute_features(stocks, vix)
+    rows, bounds = compute_features(stocks, vix, winsor_q)
+    return panel_from_rows(rows), bounds
+
+
+def panel_from_rows(rows):
+    """Keep rows that have every feature and a label, and assign splits."""
     # a row needs all features and a label; the label is the next calendar day
     # (guaranteed by reindexing: y_date is NaT across a gap because lv is NaN there)
     panel = rows.dropna(subset=["lv", "har_22", "ret", "dlogvol", "y"]).copy()
@@ -99,7 +104,7 @@ def build_panel(stocks, vix):
     panel = panel.sort_values(["ticker", "date"]).reset_index(drop=True)
     cols = ["date", "ticker", "sector", "split", "y_date", "lv", "har_1", "har_5", "har_22",
             "ret", "dlogvol", "vix", "y"]
-    return panel[cols], bounds
+    return panel[cols]
 
 
 def main():
