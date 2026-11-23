@@ -169,8 +169,11 @@ Validation 2020-2021 (QLIKE, lower is better):
 
 Reading: neighbors help trees too (significantly), but the trees do **not** beat the linear HAR with the
 same inputs. Nonlinearity adds little on top of HAR plus neighbors here. The QLIKE ranking between
-trees and HAR also depends on the variance correction: on uncorrected `qlike_raw` the trees are ahead
-by about 3%, on the corrected number they are level. Treat tree-vs-HAR as a tie until the test years.
+trees and HAR also depends on the variance correction: on uncorrected `qlike_raw` the neighbor trees are
+ahead of the matching HAR by 3-4%, on the corrected number they are level (+0.3% / -0.7%). Plain `gbt` beats
+`har` by 5% corrected, but it also has extra inputs (return, volume change, VIX), so the like-for-like
+comparisons are `gbt_sector` vs `har_sector` and `gbt_corr` vs `har_corr`. Treat tree-vs-HAR as a tie until
+the test years.
 
 ## Known limitations (for the report)
 
