@@ -62,6 +62,11 @@ and whether we have checked that it matters. Add a row whenever a new one is mad
 | 47 | Placebo design: market feature = same-day mean `har_*` of all other stocks; random twins keep each stock's neighbor count (and, for the correlation graph, its monthly availability); 5 seeds; linear HAR only. Reading rule written beforehand | claude | Nonlinear placebo (trees / GNNHAR with a market input); volatility-weighted or sector-neutral market averages | n/a. See the finding below |
 | 48 | Tree placebo uses ONE fixed hyper-parameter setting (7 leaves, lr 0.03, 500 rows per leaf) for all models, 3 seeds for the random twins | claude | Tune each model separately (more optimism, tuning noise in the comparison) | partly: all earlier tuning runs chose this setting and a wider grid gained 0.06% |
 | 46 | When varying the window, `min_common` scales with it (2/3, as 40 of 60) | claude | A fixed minimum | no |
+| 49 | **Planned:** add a QLIKE-trained HAR baseline (HAR_Q) alongside the OLS HAR | claude, from Zhang et al. (their HAR_Q beats OLS HAR by 1.9% QLIKE and 7.3% MSE at 1 day, so their headline gain over OLS HAR overstates the gain over a fair baseline) | Keep OLS HAR plus the smearing correction (#27) only | no (not built yet) |
+| 50 | **Planned:** build GNNHAR with **one graph layer** only | claude, from Zhang et al. (2- and 3-hop add no clear value; 3 layers over-smooth; on S&P 100, 4-5 layers are worse) | 2-3 layers | n/a |
+| 51 | **Planned:** run GNNHAR on the real graph, a random twin graph and the market (all-stocks) graph | claude | Run the real graph only, as the paper does | no (not built yet). Neither reference paper has this control |
+| 52 | **Planned:** consider the **Model Confidence Set** (as in Zhang et al.) for multi-model comparisons, in place of or alongside pairwise DM tests (#28, #40) | claude | Keep pairwise DM, correct for multiple comparisons | no (not built yet) |
+| 53 | GNNHAR has no per-stock identity embedding: its hidden values are computed each day from that day's inputs. "Cluster the learned embeddings" (#43) therefore needs a definition | **open, needs the team** | Average each stock's hidden state over days; cluster averaged HAR features instead | no |
 
 ## Research design (all from the proposal)
 
@@ -70,7 +75,7 @@ Proposal-owned choices are logged on the same terms as ours: they can be argued 
 | # | Decision | Set by | Alternatives | Checked? |
 |---|---|---|---|---|
 | 33 | Predict **volatility, not price direction** | proposal | Direction, returns, or both. The proposal's reason (direction is near a coin flip; volatility clusters) is sound but not tested here | n/a |
-| 34 | **Horizon is 1 trading day** ahead (5-day is out of scope) | proposal | 5 or 22 days. Spillovers could look different at longer horizons | no |
+| 34 | **Horizon is 1 trading day** ahead (5-day is out of scope) | proposal | 5 or 22 days. Spillovers could look different at longer horizons | no. Zhang et al. Table 1: the nonlinear GNN's QLIKE gain over a QLIKE-trained HAR is 2.0% at 1 day and 3.4% at 1 week, and gone at 1 month. So the optional 5-day horizon looks at least as promising |
 | 35 | **Daily** OHLC data, free sources only | proposal | Intraday realized volatility (the GNNHAR paper's data). The proposal expects smaller gains because of this | n/a |
 | 36 | Sample is **2010-2025**, S&P 500 stocks | proposal | Longer history, other markets or indices | no |
 | 37 | Yahoo Finance via `yfinance` as the price source | proposal | Stooq (named as backup), paid data | no |
@@ -81,6 +86,14 @@ Proposal-owned choices are logged on the same terms as ours: they can be argued 
 | 42 | "Recent volatility" groups are the **top vs bottom quartile** of each stock's past-month volatility | proposal | Terciles, deciles | no |
 | 43 | Second task: **cluster GNNHAR's learned embeddings** and compare to sectors (silhouette, adjusted Rand index) | proposal | Cluster raw correlations or HAR features instead of embeddings | no |
 | 44 | Case study is the **March 2023 bank failures** | proposal | Another stress episode (COVID, 2022 bear market). SIVB itself is not in our data | no |
+
+## What the two reference papers do and do not tell us
+
+Read by a delegated agent, then checked against pasted text from paper 1 (Table 1, Eq. 7, Section 5.1, Section 6.2, Conclusion). Paper 2 could only be read as an arXiv preprint; its published version was blocked.
+
+- **Zhang et al. (GNNHAR), arXiv v1, May 2023:** 27 Dow stocks, intraday data, graph from Graphical LASSO on returns. Headline gain at 1 day is 13% (MSE) and 4% (QLIKE) over OLS HAR, but 6.5% and 2.0% over the QLIKE-trained HAR. Gains hold to 1 week (QLIKE vs HAR_Q: -2.0% at 1 day, -3.4% at 1 week) and vanish at 1 month. GNNHAR's layer is a graph convolution with fixed normalized weights (Eq. 7). The paper has **no market-volatility term, no random-graph control, no comparison of graph types, and no nonlinear model without a graph**, so its "nonlinear spillover" gain is mixed up with plain nonlinearity in a stock's own volatility.
+- **Kumar et al. (preprint of Mathematics 14(2), 289):** 8 stock indices, daily, a temporal graph attention network, correlation vs Diebold-Yilmaz graphs. No significance tests, no market input, no random-graph control, internal inconsistencies in the tables. The abstract of the published version (seen only in a search summary, unverified) reports no systematic gain from dynamic over fixed graphs, which matches our refresh-rate sweep.
+- **Neither paper answers whether sector information helps beyond the market level.** Our placebo (`results/placebo*.csv`) is the only evidence so far.
 
 ## What I would test first, if time allows
 Done in the sensitivity sweep (`results/sensitivity.csv`): #10, #16-18, #20-22, #25. None changed the picture enough to replace a default.
