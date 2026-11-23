@@ -51,3 +51,21 @@ def test_twins_are_reproducible_and_depend_on_the_seed():
     a, b = random_corr_edges(real, 3), random_corr_edges(real, 3)
     pd.testing.assert_frame_equal(a, b)
     assert not any(random_corr_edges(real, s).equals(a) for s in (4, 5, 6, 7))
+
+
+def test_tree_losses_are_keyed_deterministic_and_reward_a_useful_feature(monkeypatch):
+    import placebo_trees as pt
+    import trees
+    monkeypatch.setattr(trees, "MAX_ROUNDS", 100)
+    monkeypatch.setattr(trees, "PATIENCE", 10)
+    monkeypatch.setattr(pt, "PARAMS", dict(num_leaves=7, learning_rate=0.1, min_child_samples=50))
+    rng = np.random.default_rng(0)
+    n = 6000
+    df = pd.DataFrame({"ticker": rng.choice(list("ABCDE"), n), "y_date": pd.bdate_range("2016-01-04", periods=n),
+                       "split": np.where(np.arange(n) < 4000, "train", "val"),
+                       "f": rng.normal(size=n), "noise": rng.normal(size=n)})
+    df["y"] = -4.5 + 0.5 * df["f"] + rng.normal(0, 0.3, n)
+    a, b = pt.tree_losses(df, ["f"]), pt.tree_losses(df, ["f"])
+    pd.testing.assert_frame_equal(a, b)
+    assert len(a) == 2000 and set(a.columns) == {"ticker", "y_date", "loss"}
+    assert pt.tree_losses(df, ["noise"])["loss"].mean() > a["loss"].mean()
