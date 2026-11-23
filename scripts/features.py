@@ -65,8 +65,13 @@ def _ticker_features(g, calendar, lo, hi):
     return out
 
 
-def build_panel(stocks, vix):
-    """stocks: processed stocks table; vix: processed vix table. Returns (panel, bounds)."""
+def compute_features(stocks, vix):
+    """Features for every ticker-day, before any label-based filtering.
+
+    Returns (rows, bounds). Rows still containing NaN (warm-up, gaps, last day) are kept
+    so that other stages (graphs) can use a ticker's har_* values on days where tomorrow's
+    label is unknown or missing, without letting label availability decide who is visible.
+    """
     calendar = pd.DatetimeIndex(sorted(vix["date"]))
     stocks = stocks.copy()
     stocks["lv"] = garman_klass_logvol(stocks)
@@ -77,19 +82,24 @@ def build_panel(stocks, vix):
         f = _ticker_features(g, calendar, lo, hi)
         f["ticker"] = tkr
         parts.append(f.rename_axis("date").reset_index())
-    panel = pd.concat(parts, ignore_index=True)
+    rows = pd.concat(parts, ignore_index=True)
+    rows = rows.merge(vix.rename(columns={"vix_close": "vix"}), on="date", how="left")
+    rows = rows.merge(stocks[["ticker", "sector"]].drop_duplicates(), on="ticker")
+    return rows, {"winsor_lo": lo, "winsor_hi": hi, "quantiles": list(WINSOR_Q)}
 
-    # a row needs all features, a label, and the label must be the next calendar day
+
+def build_panel(stocks, vix):
+    """stocks: processed stocks table; vix: processed vix table. Returns (panel, bounds)."""
+    rows, bounds = compute_features(stocks, vix)
+    # a row needs all features and a label; the label is the next calendar day
     # (guaranteed by reindexing: y_date is NaT across a gap because lv is NaN there)
-    panel = panel.dropna(subset=["lv", "har_22", "ret", "dlogvol", "y"])
-    panel = panel.merge(vix.rename(columns={"vix_close": "vix"}), on="date", how="left")
-    panel = panel.merge(stocks[["ticker", "sector"]].drop_duplicates(), on="ticker")
+    panel = rows.dropna(subset=["lv", "har_22", "ret", "dlogvol", "y"]).copy()
     panel["split"] = assign_split(panel["y_date"])
     panel = panel.dropna(subset=["split"])
     panel = panel.sort_values(["ticker", "date"]).reset_index(drop=True)
     cols = ["date", "ticker", "sector", "split", "y_date", "lv", "har_1", "har_5", "har_22",
             "ret", "dlogvol", "vix", "y"]
-    return panel[cols], {"winsor_lo": lo, "winsor_hi": hi, "quantiles": list(WINSOR_Q)}
+    return panel[cols], bounds
 
 
 def main():

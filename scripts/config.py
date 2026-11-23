@@ -9,6 +9,7 @@ RAW_WIKI_DIR = Path("data/raw_wiki")
 RAW_PRICE_DIR = Path("data/raw_full")
 PROCESSED_DIR = Path("data/processed")
 FEATURES_DIR = Path("data/features")
+GRAPHS_DIR = Path("data/graphs")
 RUN_LOG = Path("data/run_info.txt")
 
 VIX = "^VIX"
@@ -45,3 +46,8 @@ SPLITS = {"train": ("2010-01-01", "2019-12-31"),
 # with bounds estimated on the training split only
 HAR_WINDOWS = (1, 5, 22)
 WINSOR_Q = (0.001, 0.999)
+
+# Correlation graph: each month, link every stock to the K stocks whose daily returns
+# correlated most over the CORR_WINDOW trading days before that month (pairwise-complete,
+# needing at least CORR_MIN_COMMON shared days)
+CORR_K, CORR_WINDOW, CORR_MIN_COMMON = 10, 60, 40
