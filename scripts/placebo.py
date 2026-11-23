@@ -151,7 +151,7 @@ def main():
         print(f"  {kind:15s} mean {sub.qlike_change.mean():+.2%}  range [{sub.qlike_change.min():+.2%}, "
               f"{sub.qlike_change.max():+.2%}]  exCOVID mean {sub.qlike_change_exCOVID.mean():+.2%}")
     print("\nDOES THE GRAPH ADD ANYTHING BEYOND THE MARKET AVERAGE?")
-    for _, r in res[res["comparison"].str.contains(r"^(sector|corr|market\+sector|market\+corr) vs market")].iterrows():
+    for _, r in res[res["comparison"].str.contains(r"^(?:sector|corr|market\+sector|market\+corr) vs market")].iterrows():
         print(f"  {r['comparison']:24s} {fmt(r)}")
     print("\nREAL GRAPH VS ITS RANDOM TWIN (same degrees)")
     for kind, real in [("rand_sector", "sector"), ("rand_corr", "corr")]:
