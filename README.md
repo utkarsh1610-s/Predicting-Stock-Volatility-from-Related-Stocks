@@ -53,6 +53,8 @@ rule in its docstring, and that rule was committed before the script was run.
 | `scripts/placebo.py` | Does a market-wide average, or a random twin of each graph, do as well as the real graphs (linear HAR)? | `results/placebo.csv` |
 | `scripts/placebo_trees.py` | The same placebo with LightGBM | `results/placebo_trees.csv` |
 | `scripts/sector_check.py` | Does any single sector show a graph effect beyond the market? | `results/sector_check.csv` |
+| `scripts/sector_clustering.py` | Does volatility cluster within sectors beyond the market on the same day? (descriptive, 2010-2021 only) | `results/sector_clustering.csv`, `results/sector_episodes.csv` |
+| `scripts/own_history_test.py` | Is the sector's information redundant once the stock's own history is known? | `results/own_history.csv` |
 
 Arguable choices and what each experiment found are logged in `DECISIONS.md`.
 
