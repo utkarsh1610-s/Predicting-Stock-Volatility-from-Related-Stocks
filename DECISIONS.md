@@ -60,6 +60,7 @@ and whether we have checked that it matters. Add a row whenever a new one is mad
 | 32 | Validation scores for trees are **tuned on validation** | claude | Nested tuning | n/a. Flagged in the README |
 | 45 | Sensitivity rule: a variant replaces a default only if it is >1% better on rows both score, DM p<0.05, and still >0.5% better without Feb-Apr 2020. Written before the sweep ran | claude | A different margin; correcting for the ~30 comparisons | n/a. No variant met it, so all defaults stay |
 | 47 | Placebo design: market feature = same-day mean `har_*` of all other stocks; random twins keep each stock's neighbor count (and, for the correlation graph, its monthly availability); 5 seeds; linear HAR only. Reading rule written beforehand | claude | Nonlinear placebo (trees / GNNHAR with a market input); volatility-weighted or sector-neutral market averages | n/a. See the finding below |
+| 48 | Tree placebo uses ONE fixed hyper-parameter setting (7 leaves, lr 0.03, 500 rows per leaf) for all models, 3 seeds for the random twins | claude | Tune each model separately (more optimism, tuning noise in the comparison) | partly: all earlier tuning runs chose this setting and a wider grid gained 0.06% |
 | 46 | When varying the window, `min_common` scales with it (2/3, as 40 of 60) | claude | A fixed minimum | no |
 
 ## Research design (all from the proposal)
@@ -94,8 +95,18 @@ the other two conditions point the same way, so the verdict does not depend on i
 equal-weight average of 10 specific stocks is a noisier market proxy than 75 or 499, which may explain why the
 random and market versions win.
 
+**Placebo finding for trees (`results/placebo_trees.csv`).** Same verdict, noisier. Under the pre-written rule no
+graph-specific structure exists for trees: market+graph beats market by only 0.56% (sector, p=0.18) and 0.75%
+(correlation, p=0.06), and no real graph beats its random twin by more than 1% with p<0.05 in every seed (sector
+-1.1% on average but max p=0.42; correlation -0.1%). Without Feb-Apr 2020, every neighbor-style feature gives about
+-2% (real sector -1.95%, real correlation -1.50%, market -2.12%, random twins -2.2% and -2.1%), so the real graphs
+are no better than a market average or random stocks. Over the full validation period the tree numbers are erratic
+(the market feature alone is +0.47% *worse* than none, p=0.84, while -2.1% without COVID). One untested guess:
+trees cannot extrapolate, and March 2020 is far outside the 2010-2019 training range.
+
 Still open, by how much each could change the headline result:
-- **Whether any structure survives a market-aware baseline in a nonlinear model** (trees, GNNHAR with the market average as an input).
+- **Whether a model that sees individual neighbors (GNNHAR, learned weights) finds structure that equal-weight averages hide.** Best test: GNNHAR on the real graph vs a random twin graph vs the market graph.
+- **Trees and the COVID extrapolation guess** (above).
 - **Specific episodes** where links should matter more than the market (sector shocks, the March 2023 banks, which sits in the test years).
 - #40: how many tests we run versus how we call something significant.
 - #34: the 1-day horizon.
