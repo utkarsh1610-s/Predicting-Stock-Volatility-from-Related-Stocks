@@ -1,0 +1,84 @@
+# Decision log
+
+Choices that could reasonably have gone another way. For each: who set it, what the alternatives are,
+and whether we have checked that it matters. Add a row whenever a new one is made.
+
+**Set by**: `proposal` = in the project proposal; `team` = pre-existing pipeline code (steps 1-2);
+`claude` = chosen while building steps 3-6, open to challenge.
+**Checked?**: `yes` = sensitivity tested; `partly`; `no` = never tested, so we do not know if it matters.
+
+## Data and cleaning (steps 1-2)
+
+| # | Decision | Set by | Alternatives | Checked? |
+|---|---|---|---|---|
+| 1 | Universe is the **current (Nov 2026) S&P 500 list** | proposal | Historical index membership (removes survivorship bias; much more work) | no. Known limitation: SIVB, FRC etc. are missing |
+| 2 | Data is a **frozen snapshot**, never re-downloaded | team | Refresh periodically (but Yahoo rescales history, so results would shift) | n/a |
+| 3 | **`auto_adjust=True`** prices | team | Raw prices | no |
+| 4 | Drop rows with zero volume, zero high-low range, bad ticks, non-positive prices (32 rows) | team | Keep and repair | partly (counts are tiny) |
+| 5 | 7 tickers start at their "real" US listing date (9,233 rows dropped) | team | Keep stitched history | partly (checked against volume) |
+| 6 | Minimum **126 clean rows** per ticker (drops only Q) | team | Other cutoff | no, but only 1 ticker affected |
+| 7 | Days with high/low > 1.5 are **kept** (41 days) | team | Drop them | no |
+
+## Features and target (step 3)
+
+| # | Decision | Set by | Alternatives | Checked? |
+|---|---|---|---|---|
+| 8 | Volatility measure is **Garman-Klass** | proposal | Realized vol from intraday data (not free), Parkinson, close-to-close | no |
+| 9 | Model the **log** of volatility | claude | Model volatility or variance directly | no (standard in the HAR literature, but not tested here) |
+| 10 | **Winsorize** daily log-vol at the 0.1% / 99.9% quantiles, bounds from training years only; **the target is the clipped value** | claude (README suggested winsorizing; the quantiles are mine) | Other quantiles, no clipping, clip only inputs | **no**. Every model is scored on a clipped target, so this affects all results |
+| 11 | HAR windows **1, 5, 22** days | proposal | Other windows | no |
+| 12 | Train 2010-19 / val 2020-21 / test 2022-25 | proposal | Rolling or expanding windows | n/a |
+| 13 | Rows are assigned to a split by the **date of the label**, not the inputs | claude | Assign by input date (leaks one day of validation into training) | yes (tested; the alternative is a planted-bug test) |
+| 14 | A missing trading day **drops** every row whose window or label touches it | claude | Fill the gap, or allow shorter windows | no (cost is 554 rows) |
+| 15 | Extra tree inputs: `ret`, `dlogvol` (log change in volume vs yesterday), same-day `vix` | proposal names them; exact definitions are claude | e.g. absolute return, volume vs 22-day average | no |
+
+## Graphs (step 4)
+
+| # | Decision | Set by | Alternatives | Checked? |
+|---|---|---|---|---|
+| 16 | Correlation graph rebuilt **monthly** | proposal | Weekly, quarterly, daily | **no** |
+| 17 | Correlation window **60 trading days** | proposal | 30, 120, 250 days. Longer is more stable, shorter reacts faster; I have not seen evidence for either here | **no** |
+| 18 | **10 neighbors** per stock | proposal | 5, 20, or a correlation threshold | **no** |
+| 19 | Correlation computed on **log returns** (close to close) | claude | Volatility series, absolute returns. NB: neighbors are chosen by return correlation but then used to predict volatility | no |
+| 20 | **Pairwise-complete** correlation, needing **at least 40 shared days** of the 60 | claude (Option A chosen with you); the 40 is mine | Require all 60 days (Option B); another minimum | no |
+| 21 | Neighbor features are an **equal-weight mean** of neighbors' `har_*` | proposal says "averaged" | Weight by correlation, use the max, use a median | no |
+| 22 | Sector graph links **all** same-sector stocks (20-80 peers, equal weight) | proposal | Sub-industry (tighter groups) | no |
+| 23 | Sector labels are the **2026** labels throughout | proposal | Historical GICS | no. Known limitation |
+| 24 | Models only compare on rows where **both** neighbor feature sets exist (1% dropped) | claude | Let each model use all its rows | no |
+
+## Models and evaluation (steps 5-6)
+
+| # | Decision | Set by | Alternatives | Checked? |
+|---|---|---|---|---|
+| 25 | HAR is **one pooled regression across all stocks** | claude | One regression per stock (Corsi's original form) | **no** |
+| 26 | QLIKE and MSE-on-log-vol as metrics | proposal | RMSE on volatility, MAE, etc. | n/a |
+| 27 | QLIKE forecast variance is rescaled by a **training-set smearing factor** (~1.37) | claude | No correction, or fit with a QLIKE loss | **yes, and it matters**: without it trees lead HAR by ~3% on QLIKE; with it they tie |
+| 28 | Diebold-Mariano on each day's **cross-sectional mean** loss, Newey-West variance with lag floor(T^(1/3)) | claude (DM test itself is proposal) | Panel DM with clustered errors; stock-level tests | no. Treats all stocks as equal and ignores that stocks move together within a day beyond the averaging |
+| 29 | Fit on **train only**; never refit on train+val for the test run | claude | Refit on train+val before scoring test | no |
+| 30 | **Test years untouched** until a final run with all models | proposal | n/a | n/a |
+| 31 | Trees: LightGBM, **L2 loss**, small 12-config grid, early stopping on val | claude | Tune QLIKE loss directly, bigger grid, XGBoost | partly (a wider grid gained 0.06%) |
+| 32 | Validation scores for trees are **tuned on validation** | claude | Nested tuning | n/a. Flagged in the README |
+
+## Research design (all from the proposal)
+
+Proposal-owned choices are logged on the same terms as ours: they can be argued and have not been tested.
+
+| # | Decision | Set by | Alternatives | Checked? |
+|---|---|---|---|---|
+| 33 | Predict **volatility, not price direction** | proposal | Direction, returns, or both. The proposal's reason (direction is near a coin flip; volatility clusters) is sound but not tested here | n/a |
+| 34 | **Horizon is 1 trading day** ahead (5-day is out of scope) | proposal | 5 or 22 days. Spillovers could look different at longer horizons | no |
+| 35 | **Daily** OHLC data, free sources only | proposal | Intraday realized volatility (the GNNHAR paper's data). The proposal expects smaller gains because of this | n/a |
+| 36 | Sample is **2010-2025**, S&P 500 stocks | proposal | Longer history, other markets or indices | no |
+| 37 | Yahoo Finance via `yfinance` as the price source | proposal | Stooq (named as backup), paid data | no |
+| 38 | Baseline set: **naive, HAR, LightGBM, GNNHAR**; GARCH and LSTM are out of scope | proposal | Add GARCH (the textbook volatility baseline) | no |
+| 39 | Neighbor information is added as **averaged features** for HAR and trees, and via message passing for GNNHAR | proposal | Other ways to inject neighbors (e.g. attention, cross-stock regression) | no |
+| 40 | **Success** = neighbor models beat their no-neighbor versions on test years, with statistical significance. No significance level is stated | proposal (the level is open; I have been reading p < 0.05) | State the level and a correction for the many comparisons we run | no. We run ~10 DM tests per split without adjusting |
+| 41 | Stress is defined as **VIX > 25** (calm: VIX <= 25) | proposal | Another threshold, or VIX terciles | no |
+| 42 | "Recent volatility" groups are the **top vs bottom quartile** of each stock's past-month volatility | proposal | Terciles, deciles | no |
+| 43 | Second task: **cluster GNNHAR's learned embeddings** and compare to sectors (silhouette, adjusted Rand index) | proposal | Cluster raw correlations or HAR features instead of embeddings | no |
+| 44 | Case study is the **March 2023 bank failures** | proposal | Another stress episode (COVID, 2022 bear market). SIVB itself is not in our data | no |
+
+## What I would test first, if time allows
+Ranked by how much each could change the headline result: #10 (winsorizing), #16-18 (graph window / refresh / K),
+#25 (pooled vs per-stock HAR), #21 (neighbor weighting), #27 (already known to matter, so decide on one primary),
+#40 (how many tests we run versus how we call something significant), #34 (1-day horizon).
