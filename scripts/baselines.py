@@ -32,6 +32,7 @@ HAR = ["har_1", "har_5", "har_22"]
 SEC = ["sec_har_1", "sec_har_5", "sec_har_22"]
 COR = ["cor_har_1", "cor_har_5", "cor_har_22"]
 MODELS = {"naive": None, "har": HAR, "har_sector": HAR + SEC, "har_corr": HAR + COR}
+CSV_FMT = "%.8g"    # results are committed; 8 digits keeps them identical across machines
 # (treatment, control) pairs for the Diebold-Mariano tests
 PAIRS = [("har", "naive"), ("har_sector", "har"), ("har_corr", "har"), ("har_corr", "har_sector")]
 
@@ -126,8 +127,8 @@ def main(include_test):
     RESULTS_DIR.mkdir(exist_ok=True)
     PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
     tag = "_with_test" if include_test else ""
-    metrics.to_csv(RESULTS_DIR / f"baseline_metrics{tag}.csv", index=False)
-    dm.to_csv(RESULTS_DIR / f"baseline_dm{tag}.csv", index=False)
+    metrics.to_csv(RESULTS_DIR / f"baseline_metrics{tag}.csv", index=False, float_format=CSV_FMT)
+    dm.to_csv(RESULTS_DIR / f"baseline_dm{tag}.csv", index=False, float_format=CSV_FMT)
     for name in MODELS:
         out = df[["ticker", "date", "y_date", "split", "y"]].copy()
         out["yhat"], out["smear"] = yhat[name], smear[name]
