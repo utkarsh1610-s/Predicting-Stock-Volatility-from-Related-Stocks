@@ -105,7 +105,7 @@ are no better than a market average or random stocks. Over the full validation p
 trees cannot extrapolate, and March 2020 is far outside the 2010-2019 training range.
 
 Still open, by how much each could change the headline result:
-- **Whether a model that sees individual neighbors (GNNHAR, learned weights) finds structure that equal-weight averages hide.** Best test: GNNHAR on the real graph vs a random twin graph vs the market graph.
+- **Whether GNNHAR finds structure that our averaged-neighbor trees did not.** Correction to an earlier version of this line: GNNHAR does not learn per-neighbor weights. Its layer is a graph convolution, `ReLU(D^-1/2 A D^-1/2 H Theta)`, with a fixed degree-normalized adjacency and one shared transform of each stock's 1/5/22-day volatilities (Zhang et al., Eq. 7). Its neighbor information is close to what the tree placebo already saw, so a null result is the expectation. Test: real graph vs random twin vs market graph.
 - **Trees and the COVID extrapolation guess** (above).
 - **Specific episodes** where links should matter more than the market (sector shocks, the March 2023 banks, which sits in the test years).
 - #40: how many tests we run versus how we call something significant.
