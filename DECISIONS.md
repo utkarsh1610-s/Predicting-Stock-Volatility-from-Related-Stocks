@@ -62,7 +62,7 @@ and whether we have checked that it matters. Add a row whenever a new one is mad
 | 47 | Placebo design: market feature = same-day mean `har_*` of all other stocks; random twins keep each stock's neighbor count (and, for the correlation graph, its monthly availability); 5 seeds; linear HAR only. Reading rule written beforehand | claude | Nonlinear placebo (trees / GNNHAR with a market input); volatility-weighted or sector-neutral market averages | n/a. See the finding below |
 | 48 | Tree placebo uses ONE fixed hyper-parameter setting (7 leaves, lr 0.03, 500 rows per leaf) for all models, 3 seeds for the random twins | claude | Tune each model separately (more optimism, tuning noise in the comparison) | partly: all earlier tuning runs chose this setting and a wider grid gained 0.06% |
 | 46 | When varying the window, `min_common` scales with it (2/3, as 40 of 60) | claude | A fixed minimum | no |
-| 49 | **Done (branch `sensitivity`):** a QLIKE-trained HAR baseline (`har_q`, plus sector and correlation versions) alongside the OLS HAR | claude, from Zhang et al. (their HAR_Q beats OLS HAR by 1.9% QLIKE and 7.3% MSE at 1 day, so their headline gain over OLS HAR overstates the gain over a fair baseline) | Keep OLS HAR plus the smearing correction (#27) only | **yes**: `har_q` is only 0.8% better than OLS+smearing (QLIKE 0.2866 vs 0.2888, p=0.015); neighbor gains unchanged on top of it (-7.8% sector, -6.9% correlation). Smearing was a good approximation for linear models. Trees (L2 loss, smeared) are now 1.2% worse than `har_sector_q` and level with `har_corr_q`; a QLIKE objective for trees is untried |
+| 49 | **Done (PR #10):** a QLIKE-trained HAR baseline (`har_q`, plus sector and correlation versions) alongside the OLS HAR | claude, from Zhang et al. (their HAR_Q beats OLS HAR by 1.9% QLIKE and 7.3% MSE at 1 day, so their headline gain over OLS HAR overstates the gain over a fair baseline) | Keep OLS HAR plus the smearing correction (#27) only | **yes**: `har_q` is only 0.8% better than OLS+smearing (QLIKE 0.2866 vs 0.2888, p=0.015); neighbor gains unchanged on top of it (-7.8% sector, -6.9% correlation). Smearing was a good approximation for linear models. Trees (L2 loss, smeared) are now 1.2% worse than `har_sector_q` and level with `har_corr_q`; a QLIKE objective for trees is untried |
 | 50 | **Planned:** build GNNHAR with **one graph layer** only | claude, from Zhang et al. (2- and 3-hop add no clear value; 3 layers over-smooth; on S&P 100, 4-5 layers are worse) | 2-3 layers | n/a |
 | 51 | **Planned:** run GNNHAR on the real graph, a random twin graph and the market (all-stocks) graph | claude | Run the real graph only, as the paper does | no (not built yet). Neither reference paper has this control |
 | 52 | **Planned:** consider the **Model Confidence Set** (as in Zhang et al.) for multi-model comparisons, in place of or alongside pairwise DM tests (#28, #40) | claude | Keep pairwise DM, correct for multiple comparisons | no (not built yet) |
@@ -88,7 +88,7 @@ Proposal-owned choices are logged on the same terms as ours: they can be argued 
 | 43 | Second task: **cluster GNNHAR's learned embeddings** and compare to sectors (silhouette, adjusted Rand index) | proposal | Cluster raw correlations or HAR features instead of embeddings | no |
 | 44 | Case study is the **March 2023 bank failures** | proposal | Another stress episode (COVID, 2022 bear market). SIVB itself is not in our data | no |
 
-**Per-sector finding (`results/sector_check.csv`, validation).** No sector shows a graph effect beyond the market:
+**Per-sector finding (`results/sector_check.csv`, validation; PR #10).** No sector shows a graph effect beyond the market:
 0 of 22 sector/graph pairs met the rule. Adding sector peers or correlation neighbors on top of the market average
 moves QLIKE by between -0.64% and +0.54% in every sector, mostly slightly *worse* (extra parameters). The market
 average itself helps every sector, by -7.3% (Information Technology) to -12.0% (Utilities), so the effect is universal and
@@ -104,9 +104,9 @@ Read by a delegated agent, then checked against pasted text from paper 1 (Table 
 - **Neither paper answers whether sector information helps beyond the market level.** Our placebo (`results/placebo*.csv`) is the only evidence so far.
 
 ## What I would test first, if time allows
-Done in the sensitivity sweep (`results/sensitivity.csv`): #10, #16-18, #20-22, #25. None changed the picture enough to replace a default.
+Done in the sensitivity sweep (`results/sensitivity.csv`, PR #8): #10, #16-18, #20-22, #25. None changed the picture enough to replace a default.
 
-**Placebo finding (`results/placebo.csv`, validation, linear HAR).** The neighbor gain is a market-wide
+**Placebo finding (`results/placebo.csv`, validation, linear HAR; PR #9).** The neighbor gain is a market-wide
 volatility level, not specific links. A feature averaging *all* stocks gains -8.7% QLIKE vs plain HAR, more than
 the sector graph (-7.0%) or the correlation graph (-6.1%). Random twins of the graphs with the same neighbor counts
 gain -8.0% and -6.7%, i.e. the real graphs are 1.1% and 0.7% *worse* than random. Adding either graph on top of the
