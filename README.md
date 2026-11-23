@@ -119,9 +119,12 @@ The test years are scored only with `--include-test`; run that once, at the end,
 | `har` | OLS on `har_1/5/22`, pooled across stocks |
 | `har_sector` | `har` + sector peers' averaged `har_*` |
 | `har_corr` | `har` + correlation neighbors' averaged `har_*` |
+| `har_q`, `har_sector_q`, `har_corr_q` | the same three linear models, trained to minimize QLIKE directly (no smearing) |
 
 - **Same rows for every model.** Fit and scored on rows where both neighbor feature sets
   exist (19,161 of 1,867,262 rows dropped), so differences come from the features only.
+- **QLIKE-trained HAR** (`har_q`) is only 0.8% better than OLS with smearing on validation (0.2866 vs 0.2888, p=0.015),
+  so the smearing correction is a good approximation for the linear models. Neighbor gains are unchanged on top of it.
 - **QLIKE** uses variance `exp(2*yhat)` rescaled by a training-set smearing factor, because a
   log-model forecasts the median variance, which sits below the mean. The unscaled number is
   kept as `qlike_raw`. MSE is on log volatility.
