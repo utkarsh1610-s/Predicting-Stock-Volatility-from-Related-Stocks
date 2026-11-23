@@ -41,6 +41,21 @@ Run from the project root with the venv active:
 
 Settings shared by all steps live in `scripts/config.py`.
 
+### Analysis scripts
+
+These test whether the neighbor gain comes from specific links or from the market-wide volatility
+level. All score **validation only**; the test years stay untouched. Each script states its decision
+rule in its docstring, and that rule was committed before the script was run.
+
+| Script | Question | Output |
+|---|---|---|
+| `scripts/sensitivity.py` | Do the untested design choices (graph window, refresh rate, neighbor count, weighting, winsorizing, pooled vs per-stock HAR) change the neighbor gain? | `results/sensitivity.csv` |
+| `scripts/placebo.py` | Does a market-wide average, or a random twin of each graph, do as well as the real graphs (linear HAR)? | `results/placebo.csv` |
+| `scripts/placebo_trees.py` | The same placebo with LightGBM | `results/placebo_trees.csv` |
+| `scripts/sector_check.py` | Does any single sector show a graph effect beyond the market? | `results/sector_check.csv` |
+
+Arguable choices and what each experiment found are logged in `DECISIONS.md`.
+
 ## The data is a frozen snapshot
 
 - Constituents scraped from Wikipedia on 2026-11-14; prices downloaded from Yahoo
