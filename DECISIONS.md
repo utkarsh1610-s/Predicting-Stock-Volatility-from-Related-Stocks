@@ -62,11 +62,12 @@ and whether we have checked that it matters. Add a row whenever a new one is mad
 | 47 | Placebo design: market feature = same-day mean `har_*` of all other stocks; random twins keep each stock's neighbor count (and, for the correlation graph, its monthly availability); 5 seeds; linear HAR only. Reading rule written beforehand | claude | Nonlinear placebo (trees / GNNHAR with a market input); volatility-weighted or sector-neutral market averages | n/a. See the finding below |
 | 48 | Tree placebo uses ONE fixed hyper-parameter setting (7 leaves, lr 0.03, 500 rows per leaf) for all models, 3 seeds for the random twins | claude | Tune each model separately (more optimism, tuning noise in the comparison) | partly: all earlier tuning runs chose this setting and a wider grid gained 0.06% |
 | 46 | When varying the window, `min_common` scales with it (2/3, as 40 of 60) | claude | A fixed minimum | no |
-| 49 | **Planned:** add a QLIKE-trained HAR baseline (HAR_Q) alongside the OLS HAR | claude, from Zhang et al. (their HAR_Q beats OLS HAR by 1.9% QLIKE and 7.3% MSE at 1 day, so their headline gain over OLS HAR overstates the gain over a fair baseline) | Keep OLS HAR plus the smearing correction (#27) only | no (not built yet) |
+| 49 | **Done (branch `sensitivity`):** a QLIKE-trained HAR baseline (`har_q`, plus sector and correlation versions) alongside the OLS HAR | claude, from Zhang et al. (their HAR_Q beats OLS HAR by 1.9% QLIKE and 7.3% MSE at 1 day, so their headline gain over OLS HAR overstates the gain over a fair baseline) | Keep OLS HAR plus the smearing correction (#27) only | **yes**: `har_q` is only 0.8% better than OLS+smearing (QLIKE 0.2866 vs 0.2888, p=0.015); neighbor gains unchanged on top of it (-7.8% sector, -6.9% correlation). Smearing was a good approximation for linear models. Trees (L2 loss, smeared) are now 1.2% worse than `har_sector_q` and level with `har_corr_q`; a QLIKE objective for trees is untried |
 | 50 | **Planned:** build GNNHAR with **one graph layer** only | claude, from Zhang et al. (2- and 3-hop add no clear value; 3 layers over-smooth; on S&P 100, 4-5 layers are worse) | 2-3 layers | n/a |
 | 51 | **Planned:** run GNNHAR on the real graph, a random twin graph and the market (all-stocks) graph | claude | Run the real graph only, as the paper does | no (not built yet). Neither reference paper has this control |
 | 52 | **Planned:** consider the **Model Confidence Set** (as in Zhang et al.) for multi-model comparisons, in place of or alongside pairwise DM tests (#28, #40) | claude | Keep pairwise DM, correct for multiple comparisons | no (not built yet) |
 | 53 | GNNHAR has no per-stock identity embedding: its hidden values are computed each day from that day's inputs. "Cluster the learned embeddings" (#43) therefore needs a definition | **open, needs the team** | Average each stock's hidden state over days; cluster averaged HAR features instead | no |
+| 54 | Per-sector check: each sector gets its own QLIKE-trained regression; flag a sector/graph only if market+graph beats market by >1% with DM p<0.002 (about 0.05/22 tests) and >0.5% without Feb-Apr 2020. Written before running | claude | Pooled fit only (what the placebo did); a looser p | n/a. See the finding below |
 
 ## Research design (all from the proposal)
 
@@ -86,6 +87,13 @@ Proposal-owned choices are logged on the same terms as ours: they can be argued 
 | 42 | "Recent volatility" groups are the **top vs bottom quartile** of each stock's past-month volatility | proposal | Terciles, deciles | no |
 | 43 | Second task: **cluster GNNHAR's learned embeddings** and compare to sectors (silhouette, adjusted Rand index) | proposal | Cluster raw correlations or HAR features instead of embeddings | no |
 | 44 | Case study is the **March 2023 bank failures** | proposal | Another stress episode (COVID, 2022 bear market). SIVB itself is not in our data | no |
+
+**Per-sector finding (`results/sector_check.csv`, validation).** No sector shows a graph effect beyond the market:
+0 of 22 sector/graph pairs met the rule. Adding sector peers or correlation neighbors on top of the market average
+moves QLIKE by between -0.64% and +0.54% in every sector, mostly slightly *worse* (extra parameters). The market
+average itself helps every sector, by -7.3% (Information Technology) to -12.0% (Utilities), so the effect is universal and
+not driven by a few sectors. Three of 22 raw p-values fell below 0.05 (one in the wrong direction), about what chance
+gives. This answers the heterogeneity worry about the pooled placebo: sector-by-sector models change nothing.
 
 ## What the two reference papers do and do not tell us
 
@@ -120,7 +128,7 @@ trees cannot extrapolate, and March 2020 is far outside the 2010-2019 training r
 Still open, by how much each could change the headline result:
 - **Whether GNNHAR finds structure that our averaged-neighbor trees did not.** Correction to an earlier version of this line: GNNHAR does not learn per-neighbor weights. Its layer is a graph convolution, `ReLU(D^-1/2 A D^-1/2 H Theta)`, with a fixed degree-normalized adjacency and one shared transform of each stock's 1/5/22-day volatilities (Zhang et al., Eq. 7). Its neighbor information is close to what the tree placebo already saw, so a null result is the expectation. Test: real graph vs random twin vs market graph.
 - **Trees and the COVID extrapolation guess** (above).
-- **Specific episodes** where links should matter more than the market (sector shocks, the March 2023 banks, which sits in the test years).
+- **Specific episodes** where links should matter more than the market (sector shocks, the March 2023 banks, which sits in the test years). Sector-by-sector averages over 2020-2021 found nothing.
 - #40: how many tests we run versus how we call something significant.
 - #34: the 1-day horizon.
 - #27: already known to matter, so decide on one primary QLIKE.
