@@ -68,6 +68,8 @@ and whether we have checked that it matters. Add a row whenever a new one is mad
 | 52 | **Planned:** consider the **Model Confidence Set** (as in Zhang et al.) for multi-model comparisons, in place of or alongside pairwise DM tests (#28, #40) | claude | Keep pairwise DM, correct for multiple comparisons | no (not built yet) |
 | 53 | GNNHAR has no per-stock identity embedding: its hidden values are computed each day from that day's inputs. "Cluster the learned embeddings" (#43) therefore needs a definition | **open, needs the team** | Average each stock's hidden state over days; cluster averaged HAR features instead | no |
 | 54 | Per-sector check: each sector gets its own QLIKE-trained regression; flag a sector/graph only if market+graph beats market by >1% with DM p<0.002 (about 0.05/22 tests) and >0.5% without Feb-Apr 2020. Written before running | claude | Pooled fit only (what the placebo did); a looser p | n/a. See the finding below |
+| 55 | Own-history test: without own history, the stock's mean log-vol over the TRAINING years replaces it (a constant per stock); QLIKE-trained linear models; pooled verdict rule written beforehand; per-sector results are hypothesis-generating (44 tests, p<0.001 and >1%) | claude | A different stand-in for "no own history" (e.g. a short history window); nonlinear models | n/a. See the finding below |
+| 56 | Same-day clustering analysis is restricted to 2010-2021 by construction, uses the mean log-vol of other stocks as the market factor (own series excluded), and the sector "excess" is the peer mean minus the market factor | claude | Include the test years (they are reserved); a volatility-weighted market factor | no. Exploratory, no decision rule |
 
 ## Research design (all from the proposal)
 
@@ -94,6 +96,23 @@ moves QLIKE by between -0.64% and +0.54% in every sector, mostly slightly *worse
 average itself helps every sector, by -7.3% (Information Technology) to -12.0% (Utilities), so the effect is universal and
 not driven by a few sectors. Three of 22 raw p-values fell below 0.05 (one in the wrong direction), about what chance
 gives. This answers the heterogeneity worry about the pooled placebo: sector-by-sector models change nothing.
+
+**Same-day clustering finding (`results/sector_clustering.csv`, 2010-2021; PR #11).** Volatility does cluster by sector beyond
+the market, modestly overall and strongly in three sectors. The market factor explains 39.5% of a stock's daily log-volatility
+variation; the sector excess adds 4.5 points overall, but +17.8 in Utilities, +11.5 in Energy and +10.5 in Real Estate (+1 to +4
+elsewhere). After removing the market, same-sector residual correlation is +0.074 vs -0.010 for different sectors (Utilities +0.32,
+Energy +0.23, Real Estate +0.21). Sector excess is persistent (autocorrelation 0.46 at 1 day, 0.28 at 22 days). Largest sector-vs-market
+gaps: Energy 2014-2016 and April 2020 (1.6x to 1.85x the market), Utilities calm in 2011 and 2012 (about 0.6x). The dates fit the
+oil price collapse; that link is an inference, not something the data shows. Utilities, Energy and Real Estate were named after
+looking, so tests on them are hypotheses.
+
+**Own-history finding (`results/own_history.csv`, validation; PR #11).** The sector information is real but redundant given the
+stock's own recent volatility. Pooled, without own history: sector peers beyond the market -2.00% QLIKE (p=4e-25), correlation neighbors
+-6.30% (p=4e-27). With own history: -0.06% (p=0.06) and -0.10% (p=0.14). Own history itself is worth 21.9%. The pre-registered verdict
+is "redundant" for both graphs. Per sector, without own history: Utilities -16.6%, Energy -12.2%, Real Estate -7.4% (sector peers); with it,
++0.30%, +0.36%, -0.43%. So the sector helps exactly where it clusters most, and only until the stock's own history is known. The
+correlation graph is worth far more than the sector graph without own history; untested guess: correlated stocks stand in for the stock's
+own current level. A possible use this points to, untested: stocks with little or no history.
 
 ## What the two reference papers do and do not tell us
 
@@ -126,6 +145,7 @@ are no better than a market average or random stocks. Over the full validation p
 trees cannot extrapolate, and March 2020 is far outside the 2010-2019 training range.
 
 Still open, by how much each could change the headline result:
+- **Cold start:** do peers help when a stock has little or no history (new listings)? The own-history test points there; not run.
 - **Whether GNNHAR finds structure that our averaged-neighbor trees did not.** Correction to an earlier version of this line: GNNHAR does not learn per-neighbor weights. Its layer is a graph convolution, `ReLU(D^-1/2 A D^-1/2 H Theta)`, with a fixed degree-normalized adjacency and one shared transform of each stock's 1/5/22-day volatilities (Zhang et al., Eq. 7). Its neighbor information is close to what the tree placebo already saw, so a null result is the expectation. Test: real graph vs random twin vs market graph.
 - **Trees and the COVID extrapolation guess** (above).
 - **Specific episodes** where links should matter more than the market (sector shocks, the March 2023 banks, which sits in the test years). Sector-by-sector averages over 2020-2021 found nothing.
