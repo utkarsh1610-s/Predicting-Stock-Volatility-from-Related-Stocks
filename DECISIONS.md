@@ -59,6 +59,7 @@ and whether we have checked that it matters. Add a row whenever a new one is mad
 | 31 | Trees: LightGBM, **L2 loss**, small 12-config grid, early stopping on val | claude | Tune QLIKE loss directly, bigger grid, XGBoost | partly (a wider grid gained 0.06%) |
 | 32 | Validation scores for trees are **tuned on validation** | claude | Nested tuning | n/a. Flagged in the README |
 | 45 | Sensitivity rule: a variant replaces a default only if it is >1% better on rows both score, DM p<0.05, and still >0.5% better without Feb-Apr 2020. Written before the sweep ran | claude | A different margin; correcting for the ~30 comparisons | n/a. No variant met it, so all defaults stay |
+| 47 | Placebo design: market feature = same-day mean `har_*` of all other stocks; random twins keep each stock's neighbor count (and, for the correlation graph, its monthly availability); 5 seeds; linear HAR only. Reading rule written beforehand | claude | Nonlinear placebo (trees / GNNHAR with a market input); volatility-weighted or sector-neutral market averages | n/a. See the finding below |
 | 46 | When varying the window, `min_common` scales with it (2/3, as 40 of 60) | claude | A fixed minimum | no |
 
 ## Research design (all from the proposal)
@@ -83,8 +84,19 @@ Proposal-owned choices are logged on the same terms as ours: they can be argued 
 ## What I would test first, if time allows
 Done in the sensitivity sweep (`results/sensitivity.csv`): #10, #16-18, #20-22, #25. None changed the picture enough to replace a default.
 
+**Placebo finding (`results/placebo.csv`, validation, linear HAR).** The neighbor gain is a market-wide
+volatility level, not specific links. A feature averaging *all* stocks gains -8.7% QLIKE vs plain HAR, more than
+the sector graph (-7.0%) or the correlation graph (-6.1%). Random twins of the graphs with the same neighbor counts
+gain -8.0% and -6.7%, i.e. the real graphs are 1.1% and 0.7% *worse* than random. Adding either graph on top of the
+market average improves QLIKE by 0.06%. The same holds without Feb-Apr 2020. One wording note: the rule said the
+market had to be "within 1.0 pp" of the graphs, but it beat them by 1.7 to 2.6 pp. The rule did not anticipate that;
+the other two conditions point the same way, so the verdict does not depend on it. Limits: linear model only, and an
+equal-weight average of 10 specific stocks is a noisier market proxy than 75 or 499, which may explain why the
+random and market versions win.
+
 Still open, by how much each could change the headline result:
-- **A placebo for the neighbor gain.** Sector (75 peers) did as well as correlation (10), more neighbors helped steadily, and finer groups did worse. That is what you would see if the gain comes from a broad market-wide volatility level and not from specific links. Compare against a feature that averages *all* stocks, or random stocks. If those match, "related stocks" is not what is helping.
+- **Whether any structure survives a market-aware baseline in a nonlinear model** (trees, GNNHAR with the market average as an input).
+- **Specific episodes** where links should matter more than the market (sector shocks, the March 2023 banks, which sits in the test years).
 - #40: how many tests we run versus how we call something significant.
 - #34: the 1-day horizon.
 - #27: already known to matter, so decide on one primary QLIKE.
