@@ -37,6 +37,7 @@ Run from the project root with the venv active:
 | 3 | `scripts/features.py` | `data/features/panel.parquet`, `winsor_bounds.json` |
 | 4 | `scripts/graphs.py` | `data/graphs/{sector,corr}_edges.parquet`, `data/features/neighbors.parquet` |
 | 5 | `scripts/baselines.py` | `results/baseline_*.csv`, `data/predictions/<model>.parquet` |
+| 6 | `scripts/trees.py` | `results/trees_*.csv`, `data/predictions/gbt*.parquet` |
 
 Settings shared by all steps live in `scripts/config.py`.
 
@@ -139,6 +140,37 @@ Read these with care. The gain is concentrated in the COVID crash: with Feb-Apr 
 it is -2.5% (sector) and -1.9% (correlation), still significant (p < 0.001) but much smaller.
 On validation the fixed sector graph beats the correlation graph. Nothing is tuned yet, and
 the test years are untouched.
+
+## Gradient-boosted trees (`scripts/trees.py`)
+
+LightGBM on the same rows as the baselines. `gbt` uses `har_1/5/22`, return, volume change and
+VIX; `gbt_sector` and `gbt_corr` add the same neighbor features as the HAR models.
+`python scripts/trees.py` takes about 3 minutes; `--include-test` scores the test years (once, at the end).
+
+- **Tuning.** Each model gets the same 12-config grid (leaves, learning rate, min leaf size) with early
+  stopping on validation MSE. Unlike the baselines, **validation scores here are tuned on validation**,
+  so they are mildly optimistic; the test years are the clean number. All three models picked the
+  smallest trees (7 leaves, lr 0.03, min leaf 500). Widening the grid improved validation MSE by 0.06%,
+  so the choice is not a grid artefact.
+- **Over/underfitting.** `results/trees_curves.csv` has train and validation loss per boosting round.
+  Validation loss sits below training loss (probably a property of the 2020-2021 period, not checked),
+  and stops improving after a few hundred rounds, well before the 3,000-round limit; there is no sign of overfitting.
+
+Validation 2020-2021 (QLIKE, lower is better):
+
+| Model | QLIKE | vs HAR | MSE log-vol | DM p (vs row's control) |
+|---|---|---|---|---|
+| har | 0.2888 | | 0.1330 | |
+| gbt | 0.2744 | -5.0% | 0.1266 | 0.14 vs har |
+| har_sector | 0.2685 | -7.0% | 0.1240 | 0.012 vs har |
+| gbt_sector | 0.2694 | -6.7% | 0.1243 | 0.005 vs gbt; 0.80 vs har_sector |
+| har_corr | 0.2713 | -6.1% | 0.1251 | 0.021 vs har |
+| gbt_corr | 0.2693 | -6.7% | 0.1243 | 0.001 vs gbt; 0.61 vs har_corr |
+
+Reading: neighbors help trees too (significantly), but the trees do **not** beat the linear HAR with the
+same inputs. Nonlinearity adds little on top of HAR plus neighbors here. The QLIKE ranking between
+trees and HAR also depends on the variance correction: on uncorrected `qlike_raw` the trees are ahead
+by about 3%, on the corrected number they are level. Treat tree-vs-HAR as a tie until the test years.
 
 ## Known limitations (for the report)
 
