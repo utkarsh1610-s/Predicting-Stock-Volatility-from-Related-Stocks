@@ -25,7 +25,7 @@ and whether we have checked that it matters. Add a row whenever a new one is mad
 |---|---|---|---|---|
 | 8 | Volatility measure is **Garman-Klass** | proposal | Realized vol from intraday data (not free), Parkinson, close-to-close | no |
 | 9 | Model the **log** of volatility | claude | Model volatility or variance directly | no (standard in the HAR literature, but not tested here) |
-| 10 | **Winsorize** daily log-vol at the 0.1% / 99.9% quantiles, bounds from training years only; **the target is the clipped value** | claude (README suggested winsorizing; the quantiles are mine) | Other quantiles, no clipping, clip only inputs | **no**. Every model is scored on a clipped target, so this affects all results |
+| 10 | **Winsorize** daily log-vol at the 0.1% / 99.9% quantiles, bounds from training years only; **the target is the clipped value** | claude (README suggested winsorizing; the quantiles are mine) | Other quantiles, no clipping, clip only inputs | **partly** (sweep): the headline neighbor gain moves with clipping (sector: 1/99% -5.2%, default -7.0%, none -8.0%) but the ex-COVID gain is stable (-2.0% to -2.6%). Absolute losses are on different targets, so levels are not comparable |
 | 11 | HAR windows **1, 5, 22** days | proposal | Other windows | no |
 | 12 | Train 2010-19 / val 2020-21 / test 2022-25 | proposal | Rolling or expanding windows | n/a |
 | 13 | Rows are assigned to a split by the **date of the label**, not the inputs | claude | Assign by input date (leaks one day of validation into training) | yes (tested; the alternative is a planted-bug test) |
@@ -36,13 +36,13 @@ and whether we have checked that it matters. Add a row whenever a new one is mad
 
 | # | Decision | Set by | Alternatives | Checked? |
 |---|---|---|---|---|
-| 16 | Correlation graph rebuilt **monthly** | proposal | Weekly, quarterly, daily | **no** |
-| 17 | Correlation window **60 trading days** | proposal | 30, 120, 250 days. Longer is more stable, shorter reacts faster; I have not seen evidence for either here | **no** |
-| 18 | **10 neighbors** per stock | proposal | 5, 20, or a correlation threshold | **no** |
+| 16 | Correlation graph rebuilt **monthly** | proposal | Weekly, quarterly, daily | **yes**: weekly and quarterly change the gain by 0.1% or less |
+| 17 | Correlation window **60 trading days** | proposal | 30, 120, 250 days. Longer is more stable, shorter reacts faster; I have not seen evidence for either here | **yes**: windows of 30 to 250 days change the gain by 0.3% or less (30 days is 0.3% better, p=0.004, far under the 1% rule) |
+| 18 | **10 neighbors** per stock | proposal | 5, 20, or a correlation threshold | **yes**: more neighbors help steadily: K=5 gives -5.1%, 10 gives -6.1%, 20 gives -6.8%. K=20 is 0.8% better than the default (p=0.002), under the 1% rule margin. Not tested beyond 20 |
 | 19 | Correlation computed on **log returns** (close to close) | claude | Volatility series, absolute returns. NB: neighbors are chosen by return correlation but then used to predict volatility | no |
-| 20 | **Pairwise-complete** correlation, needing **at least 40 shared days** of the 60 | claude (Option A chosen with you); the 40 is mine | Require all 60 days (Option B); another minimum | no |
-| 21 | Neighbor features are an **equal-weight mean** of neighbors' `har_*` | proposal says "averaged" | Weight by correlation, use the max, use a median | no |
-| 22 | Sector graph links **all** same-sector stocks (20-80 peers, equal weight) | proposal | Sub-industry (tighter groups) | no |
+| 20 | **Pairwise-complete** correlation, needing **at least 40 shared days** of the 60 | claude (Option A chosen with you); the 40 is mine | Require all 60 days (Option B); another minimum | **yes**: 30 and 50 change nothing (0.1% or less). Option B itself not tested |
+| 21 | Neighbor features are an **equal-weight mean** of neighbors' `har_*` | proposal says "averaged" | Weight by correlation, use the max, use a median | **yes** for correlation weighting: no change (0.0%). Others untested |
+| 22 | Sector graph links **all** same-sector stocks (20-80 peers, equal weight) | proposal | Sub-industry (tighter groups) | **yes**: sub-industry is much worse (-3.5% vs -7.0% for sector), consistent with more neighbors helping |
 | 23 | Sector labels are the **2026** labels throughout | proposal | Historical GICS | no. Known limitation |
 | 24 | Models only compare on rows where **both** neighbor feature sets exist (1% dropped) | claude | Let each model use all its rows | no |
 
@@ -50,7 +50,7 @@ and whether we have checked that it matters. Add a row whenever a new one is mad
 
 | # | Decision | Set by | Alternatives | Checked? |
 |---|---|---|---|---|
-| 25 | HAR is **one pooled regression across all stocks** | claude | One regression per stock (Corsi's original form) | **no** |
+| 25 | HAR is **one pooled regression across all stocks** | claude | One regression per stock (Corsi's original form) | **yes**: per-stock HAR is 2.6% worse in absolute QLIKE (0.2961 vs 0.2888). It makes the neighbor gain look bigger (-8.3%) only because the baseline is weaker, so pooled is the stricter baseline |
 | 26 | QLIKE and MSE-on-log-vol as metrics | proposal | RMSE on volatility, MAE, etc. | n/a |
 | 27 | QLIKE forecast variance is rescaled by a **training-set smearing factor** (~1.37) | claude | No correction, or fit with a QLIKE loss | **yes, and it matters**: without it trees lead HAR by ~3% on QLIKE; with it they tie |
 | 28 | Diebold-Mariano on each day's **cross-sectional mean** loss, Newey-West variance with lag floor(T^(1/3)) | claude (DM test itself is proposal) | Panel DM with clustered errors; stock-level tests | no. Treats all stocks as equal and ignores that stocks move together within a day beyond the averaging |
@@ -58,6 +58,8 @@ and whether we have checked that it matters. Add a row whenever a new one is mad
 | 30 | **Test years untouched** until a final run with all models | proposal | n/a | n/a |
 | 31 | Trees: LightGBM, **L2 loss**, small 12-config grid, early stopping on val | claude | Tune QLIKE loss directly, bigger grid, XGBoost | partly (a wider grid gained 0.06%) |
 | 32 | Validation scores for trees are **tuned on validation** | claude | Nested tuning | n/a. Flagged in the README |
+| 45 | Sensitivity rule: a variant replaces a default only if it is >1% better on rows both score, DM p<0.05, and still >0.5% better without Feb-Apr 2020. Written before the sweep ran | claude | A different margin; correcting for the ~30 comparisons | n/a. No variant met it, so all defaults stay |
+| 46 | When varying the window, `min_common` scales with it (2/3, as 40 of 60) | claude | A fixed minimum | no |
 
 ## Research design (all from the proposal)
 
@@ -79,6 +81,11 @@ Proposal-owned choices are logged on the same terms as ours: they can be argued 
 | 44 | Case study is the **March 2023 bank failures** | proposal | Another stress episode (COVID, 2022 bear market). SIVB itself is not in our data | no |
 
 ## What I would test first, if time allows
-Ranked by how much each could change the headline result: #10 (winsorizing), #16-18 (graph window / refresh / K),
-#25 (pooled vs per-stock HAR), #21 (neighbor weighting), #27 (already known to matter, so decide on one primary),
-#40 (how many tests we run versus how we call something significant), #34 (1-day horizon).
+Done in the sensitivity sweep (`results/sensitivity.csv`): #10, #16-18, #20-22, #25. None changed the picture enough to replace a default.
+
+Still open, by how much each could change the headline result:
+- **A placebo for the neighbor gain.** Sector (75 peers) did as well as correlation (10), more neighbors helped steadily, and finer groups did worse. That is what you would see if the gain comes from a broad market-wide volatility level and not from specific links. Compare against a feature that averages *all* stocks, or random stocks. If those match, "related stocks" is not what is helping.
+- #40: how many tests we run versus how we call something significant.
+- #34: the 1-day horizon.
+- #27: already known to matter, so decide on one primary QLIKE.
+- #18: K beyond 20.
