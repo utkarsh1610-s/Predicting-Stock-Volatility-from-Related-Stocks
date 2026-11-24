@@ -38,6 +38,8 @@ Run from the project root with the venv active:
 | 4 | `scripts/graphs.py` | `data/graphs/{sector,corr}_edges.parquet`, `data/features/neighbors.parquet` |
 | 5 | `scripts/baselines.py` | `results/baseline_*.csv`, `data/predictions/<model>.parquet` |
 | 6 | `scripts/trees.py` | `results/trees_*.csv`, `data/predictions/gbt*.parquet` |
+| 7 | `scripts/gnnhar.py` | `results/gnnhar*.csv`, `data/predictions/gnn_*.parquet`, `nn_own.parquet` |
+| clustering | `scripts/stock_clusters.py` | `results/stock_clusters.csv`, `cluster_quality.csv`, `cluster_summary.csv`, `cluster_pairs.csv` |
 
 Settings shared by all steps live in `scripts/config.py`.
 
@@ -195,6 +197,38 @@ ahead of the matching HAR by 3-4%, on the corrected number they are level (+0.3%
 comparisons are `gbt_sector` vs `har_sector` and `gbt_corr` vs `har_corr`. Treat tree-vs-HAR as a tie until
 the test years.
 
+## GNNHAR (`scripts/gnnhar.py`)
+
+One-layer GNNHAR after Zhang et al. (2025): HAR on the stock's own `har_1/5/22` plus one hidden ReLU
+layer over [own `har_*`, the neighbors' mean `har_*`]. With mean aggregation a day's graph layer is exactly
+that neighbor mean, so the networks see the same neighbor information as the linear and tree models.
+`python scripts/gnnhar.py` scores validation; `--include-test` scores the test years (once, at the end).
+
+| Model | Graph input |
+|---|---|
+| `nn_own` | none: the same network on own history only, to separate nonlinearity from graph information |
+| `gnn_sector`, `gnn_corr` | the real graphs |
+| `gnn_market` | every other stock (the placebo's market average) |
+| `gnn_market+sector`, `gnn_market+corr` | the graph on top of the market average |
+| `gnn_rand_sector_s*`, `gnn_rand_corr_s*` | random twins of the graphs (same neighbor counts), one per seed |
+
+- **Training.** QLIKE loss, inputs standardized on the training years, HAR part starting at the QLIKE-trained
+  linear fit. Epochs are chosen by early stopping on 2019 (fit on 2010-2018), then the model is refit on all
+  training years. Validation is never used to fit or tune, so it stays a clean score.
+- **Fixed, untuned architecture:** 16 hidden units, Adam lr 1e-3, batch 8192, at most 30 epochs, patience 3,
+  3 seeds averaged. The verdict rule is in the script's docstring and was written before running.
+- Results: not yet run on the snapshot.
+
+## Stock clustering (`scripts/stock_clusters.py`)
+
+Clusters stocks by how their volatility moves together **beyond the market**, on the training years only:
+each stock's daily log-vol is regressed on the mean of all other stocks that day, and stocks are clustered
+(average linkage) on 1 - correlation of those residuals. Compared with GICS sectors by adjusted Rand index
+and silhouette (sectors get a silhouette too, as a reference), plus pairs to inspect by hand: correlated
+cross-sector pairs that share a cluster, and same-sector pairs the clustering splits.
+
+- Results: not yet run on the snapshot.
+
 ## Known limitations (for the report)
 
 - **Survivorship bias.** The universe is the November 2026 S&P 500 list. Firms that left
@@ -207,5 +241,5 @@ the test years.
 
 ## Layout
 
-- `scripts/`: the data pipeline, features and graphs
+- `scripts/`: the data pipeline, features, graphs, models (HAR, trees, GNNHAR) and analyses
 - `tests/`: unit tests (`pytest`)

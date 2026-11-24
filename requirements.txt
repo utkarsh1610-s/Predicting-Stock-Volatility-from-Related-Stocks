@@ -9,3 +9,4 @@ beautifulsoup4==4.15.0
 lightgbm==4.7.0
 scipy==1.18.1      # lightgbm dependency, pinned for reproducibility
 pytest==9.0.2
+torch==2.15.0      # GNNHAR (scripts/gnnhar.py)
