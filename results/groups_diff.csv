@@ -1,0 +1,19 @@
+model,versus,test,change_group1,change_group2,days_group1,days_group2,diff_in_mean_loss_gap,p
+har_sector,har,stressed minus calm,-0.15424914,-0.02154558,175,330,-0.041464992,0.062853269
+har_sector,har,top minus bottom quartile,-0.097118821,-0.027202344,505,410,-0.001212364,0.75448678
+har_corr,har,stressed minus calm,-0.13737115,-0.016189982,175,330,-0.037765141,0.07092796
+har_corr,har,top minus bottom quartile,-0.084154005,-0.026115075,505,410,0.0021119779,0.51603076
+gbt_sector,gbt,stressed minus calm,-0.016679567,-0.018974609,175,330,0.00079479109,0.86564105
+gbt_sector,gbt,top minus bottom quartile,-0.017718496,-0.018817814,505,410,-0.0013693767,0.56864956
+gbt_corr,gbt,stressed minus calm,-0.02479875,-0.015534049,175,330,-0.0023641682,0.57087506
+gbt_corr,gbt,top minus bottom quartile,-0.020564584,-0.01787869,505,410,0.0013401573,0.43465589
+gnn_sector,nn_own,stressed minus calm,-0.15139772,-0.023614866,175,330,-0.038252428,0.05015786
+gnn_sector,nn_own,top minus bottom quartile,-0.094340973,-0.028190254,505,410,-0.0017468794,0.67021099
+gnn_corr,nn_own,stressed minus calm,-0.13755361,-0.018707646,175,330,-0.035522448,0.055482968
+gnn_corr,nn_own,top minus bottom quartile,-0.085124172,-0.025915746,505,410,0.0012171418,0.71918792
+gnn_market,nn_own,stressed minus calm,-0.16301101,-0.032999237,175,330,-0.039075724,0.048746455
+gnn_market,nn_own,top minus bottom quartile,-0.10803591,-0.028219495,505,410,-0.0070248137,0.14997293
+gnn_market+sector,gnn_market,stressed minus calm,-0.0065623541,-0.00087672774,175,330,-0.0013882517,0.30495386
+gnn_market+sector,gnn_market,top minus bottom quartile,-0.0030385584,-0.0054182379,505,410,0.0012860342,0.069705273
+gnn_market+corr,gnn_market,stressed minus calm,-0.011224393,-0.001008282,175,330,-0.0025065567,0.1941735
+gnn_market+corr,gnn_market,top minus bottom quartile,-0.0055476521,-0.0067933379,505,410,0.0021421365,0.047733593
