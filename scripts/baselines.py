@@ -78,7 +78,7 @@ def score(df, yhat, smear, splits):
     for split in splits:
         m = (df["split"] == split).to_numpy()
         y = df["y"].to_numpy()[m]
-        for name in MODELS:
+        for name in yhat:
             p = yhat[name][m]
             rows.append({"model": name, "split": split, "n": int(m.sum()),
                          "mse_logvol": mse_logvol(y, p),
@@ -94,10 +94,10 @@ def daily_loss(df, yhat, smear, name, split):
     return pd.Series(loss, index=df["y_date"][m]).groupby(level=0).mean()
 
 
-def dm_table(df, yhat, smear, splits):
+def dm_table(df, yhat, smear, splits, pairs=PAIRS):
     rows = []
     for split in splits:
-        for a, b in PAIRS:
+        for a, b in pairs:
             la, lb = daily_loss(df, yhat, smear, a, split), daily_loss(df, yhat, smear, b, split)
             mean_d, stat, p = dm_test(la.to_numpy(), lb.to_numpy())
             rows.append({"split": split, "model": a, "vs": b, "days": len(la),
