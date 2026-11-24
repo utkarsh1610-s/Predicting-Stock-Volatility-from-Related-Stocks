@@ -68,7 +68,7 @@ def test_each_feature_uses_only_past_values(monkeypatch):
     train-only property of the bounds is covered by the test above.
     """
     import features
-    monkeypatch.setattr(features, "winsor_bounds", lambda lv, dates: (-9.0, 0.0))
+    monkeypatch.setattr(features, "winsor_bounds", lambda lv, dates, q=None: (-9.0, 0.0))
     stocks, vix = synth(("AAA",))
     base, _ = build_panel(stocks, vix)
     t = pd.Timestamp("2019-12-10")
