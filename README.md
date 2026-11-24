@@ -47,6 +47,8 @@ Run from the project root with the venv active:
 | 6 | `scripts/trees.py` | `results/trees_*.csv`, `data/predictions/gbt*.parquet` |
 | 7 | `scripts/gnnhar.py` | `results/gnnhar*.csv`, `data/predictions/gnn_*.parquet`, `nn_own.parquet` |
 | 8 | `scripts/group_analysis.py` | `results/groups*.csv`: neighbor gain by market stress, recent volatility and sector |
+| 9 | `scripts/disagreement.py` | `results/disagreement_*_test.csv`: the largest model disagreements, by decile, day and record |
+| figures | `scripts/figures.py` | `figures/fig01-11_*.png` from the files above |
 | clustering | `scripts/stock_clusters.py` | `results/stock_clusters.csv`, `cluster_quality.csv`, `cluster_summary.csv`, `cluster_pairs.csv` |
 
 Settings shared by all steps live in `scripts/config.py`.
@@ -369,6 +371,50 @@ validation before the test years were scored. `python scripts/group_analysis.py 
   (-1.6%, not significant), and Energy is not significant either. Validation is similar: Utilities, Real Estate
   and Financials on top, Information Technology near the bottom. Sector results are many tests; few clear the
   Bonferroni line (marked `significant_bonferroni` in the CSV).
+
+## Largest disagreements (`scripts/disagreement.py`)
+
+Proposal 4c.2: on the stock-days where HAR with sector peers (`har_sector`) and plain HAR disagree most, who
+was right, and what did the peers do? Test years, both forecasts with their smearing correction.
+`python scripts/disagreement.py [--split val]`, seconds. Descriptive.
+
+- **The gain comes from the extremes.** Split the 496,188 test stock-days into ten equal bins by disagreement:
+  the peer model cuts QLIKE by 6.4% in the bin where peers say "lower" most and by 11.8% where they say
+  "higher" most; in the middle six bins the change is 0% to -1% (`results/disagreement_deciles_test.csv`).
+  So the neighbor gain comes from about a fifth of stock-days.
+- **"Higher" is an insurance call.** When peers say lower, the peer model is closer 69-72% of the time. When
+  they say higher, it is closer only 33-39% of the time, yet that bin has the biggest QLIKE gain: QLIKE
+  punishes under-predicting risk, and the rare real spikes it catches outweigh the many small misses.
+- **The big disagreements are market days, not sector stories** (`results/disagreement_days_test.csv`). The
+  busiest days are the April 2025 tariff sell-off: on 4, 7 and 8 April the peer model was closer on 91-100%
+  of large disagreements, but on 9 and 10 April, after the rebound, only 44% and 8%; the peers kept calling
+  for high volatility after it had passed. Next come January 2022 (tech sell-off), October 2022, August 2024
+  and the day after the 2024 election. In the March 2023 bank crisis (13 and 16 March) the disagreements
+  were mostly Financials, but the peer model was closer on only 28-29% of them.
+- **Quiet days too.** The largest "peers say lower" days are holiday sessions (day after Thanksgiving
+  2022 and 2023, late December), where the peer model was closer on 63-95%.
+- In the top records (`results/disagreement_top_test.csv`) the "peers moving" are a sector's biggest movers
+  that day, and on the busiest days they are the same for every stock in the sector: the peers stand in for
+  the market. This matches the placebo and GNNHAR findings.
+
+## Figures (`scripts/figures.py`)
+
+`python scripts/figures.py` redraws every figure from files the pipeline already wrote (seconds, nothing is
+refit) into `figures/`, at 1920 x 1080 for slides and video. In story order:
+
+| File | Shows |
+|---|---|
+| `fig01_volatility_timeline.png` | 16 years of volatility with the train / validation / test periods and the big episodes |
+| `fig02_graphs.png` | The sector graph vs the correlation graph for 30 random stocks (March 2023) |
+| `fig03_main_result.png` | Neighbors improve every model, validation and test (the success measure) |
+| `fig04_placebo.png` | Real neighbors vs random twins vs the whole market (GNNHAR) |
+| `fig05_seed_check.png` | 3 vs 10 training runs, and how much single runs differ |
+| `fig06_learning_curves.png` | Training vs validation error of the trees (overfitting check) |
+| `fig07_calm_vs_stressed.png` | Gain on calm vs stressed days (VIX > 25) |
+| `fig08_sector_heatmap.png` | Gain by sector and model, test years |
+| `fig09_disagreement.png` | The gain comes from the days the models disagree most |
+| `fig10_clustering.png` | Market-residual correlation matrix ordered by clustering, with sectors |
+| `fig11_april_2025.png` | Case: the April 2025 tariff sell-off, actual vs both forecasts |
 
 ## Known limitations (for the report)
 
