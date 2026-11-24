@@ -48,7 +48,8 @@ Run from the project root with the venv active:
 | 7 | `scripts/gnnhar.py` | `results/gnnhar*.csv`, `data/predictions/gnn_*.parquet`, `nn_own.parquet` |
 | 8 | `scripts/group_analysis.py` | `results/groups*.csv`: neighbor gain by market stress, recent volatility and sector |
 | 9 | `scripts/disagreement.py` | `results/disagreement_*_test.csv`: the largest model disagreements, by decile, day and record |
-| figures | `scripts/figures.py` | `figures/fig01-11_*.png` from the files above |
+| 10 | `scripts/cold_start.py`, `spillover.py`, `competitor.py` | follow-up tests: new stocks, market-free target, shocks, direct rivals |
+| figures | `scripts/figures.py` | `figures/fig01-14_*.png` from the files above |
 | clustering | `scripts/stock_clusters.py` | `results/stock_clusters.csv`, `cluster_quality.csv`, `cluster_summary.csv`, `cluster_pairs.csv` |
 
 Settings shared by all steps live in `scripts/config.py`.
@@ -397,6 +398,74 @@ was right, and what did the peers do? Test years, both forecasts with their smea
   that day, and on the busiest days they are the same for every stock in the sector: the peers stand in for
   the market. This matches the placebo and GNNHAR findings.
 
+## Follow-up: which links carry contagion? (`cold_start.py`, `spillover.py`, `competitor.py`)
+
+Three scripts, each with its decision rule written in its docstring before it was run. All fit on 2010-2019
+and report validation (2020-21) and test (2022-25). Volatility differences are log-vol differences turned
+into percent.
+
+| Script | Question | Output |
+|---|---|---|
+| `scripts/cold_start.py` | Can a stock with little or no history of its own borrow its sector's volatility? | `results/cold_start*.csv` |
+| `scripts/spillover.py` | With the market removed, do sector peers predict a stock's volatility? When one company has its own shock, do its sector peers follow the next day? | `results/excess_vol*.csv`, `results/shock_*.csv` |
+| `scripts/competitor.py` | Does the single closest competitor carry information the whole sector does not? | `results/competitor*.csv` |
+
+**Story in one line:** the whole market drives volatility; contagion between companies travels through direct
+rivals when shocks hit, mostly on the same day; the sector is useful only as a starting guess for a new stock.
+
+**Ordinary days (stock with full history): market first, everything else ~0.**
+- With the market removed from the target (a stock's log-vol minus the market's), its own history explains
+  43% of the variation; sector peers add 0.05% (MSE -0.08%, p=0.01 validation; -0.02%, p=0.33 test). Rule
+  (>1% on both splits) not met. Random groups add nothing; the small gain is the fixed sector label.
+- A single competitor (closest rival, rival of similar size, industry leader, or top correlation neighbor)
+  adds ~0.05% over the market, the same as the sector average.
+
+**Shock days: the direct rival reacts, the sector barely does.** A shock is a stock's own jump (log-vol minus
+its 22-day mean, minus the market's) in the top 1% of training days while the market is calm (1,281 shocks in
+validation, 4,031 in test). Exposed stocks are compared with unexposed stocks on the same day.
+
+| Linked company had a shock | Same day, val / test | Next day beyond HAR + market, val / test |
+|---|---|---|
+| Any sector peer | +2.7% / +4.0% (p<0.001) | +0.1% (p=0.85) / +0.3% (p=0.28) |
+| Closest rival (same sub-industry, most similar market-free returns) | +17% / +23% (p<0.001) | +3.9% (p=0.009) / +1.5% (p=0.07) |
+| Industry leader (largest in the sub-industry) | +17% / +19% (p<0.001) | **+4.2% (p=0.02) / +2.5% (p=0.01)** |
+| Random stock (5 draws) | ~0 (p>0.6) | ~0 (p>0.6) |
+
+- A rival's shock moves a stock about five times more on the same day than a typical sector peer's: averaging
+  over 20-70 peers washes the signal out.
+- The industry leader is the only link with a next-day effect on both splits, beyond the stock's own history
+  and the market. With 4 link types tested it misses a Bonferroni cut (0.0125) narrowly, so it is consistent
+  but borderline. Sector-wide exposure has no next-day effect: its same-day news is already in each peer's
+  own volatility by the close.
+- Two share classes of one company (GOOG/GOOGL, FOX/FOXA, NWS/NWSA) are never linked. Example pairs (latest
+  month): DAL-UAL, HD-LOW, KO-PEP, XOM-CVX, UNH-ELV, WMT-COST, JPM-BAC.
+
+**New stocks: the sector on day 1, the closest rival once it has traded.** Each stock is given only its last
+k days of its own volatility (peers keep full history).
+
+| Own history | Sector vs market only, val / test | Live sector vs fixed sector label |
+|---|---|---|
+| 0 days | **-8.0% / -5.5%** (p<0.001) | -0.9% (p=0.005) / -0.06% (p=0.72) |
+| 1 day | -2.4% / -1.6% | -0.5% / -0.2% (p<0.01) |
+| 5 days | -0.35% / -0.3% | ~0 |
+| 22 days (full HAR) | -0.06% / -0.08% | ~0 |
+
+- Random groups of the sector's size add nothing at any k, so for a new stock the sector beats random for
+  the first time in the project. But a fixed label per sector gets almost all of it: what helps is knowing
+  the sector's usual level (utilities calm, energy wild), not its daily news. The rule (live sector beats
+  the label on both splits) is not met at k=0. The gain is gone after about 5 days of own history.
+- With no own history, the closest rival (-15.7% / -10.4%) and the top correlation neighbor (-17.3% / -17.5%)
+  beat the sector average, but choosing them needs ~60 days of the stock's own returns. The industry leader,
+  the only rival usable on day 1, is worse than the sector average (-6.0% / +0.5%).
+- Real new listings (83 stocks first seen after March 2010, their first 60 rows): with no own history the
+  sector beats the market by 9.8%; once their own 22-day HAR exists the sector adds nothing (+0.25%). A row
+  needs 22 days of history, so listing days 1-21 can only be studied by the simulation above.
+
+**What this adds to the reference papers.** Zhang et al. and Kumar et al. credit their gains to the stock
+graph. With a market-average input and random graphs (controls neither paper has) most of that gain is the
+market. What is specific to links sits in single direct rivals on shock days, which a graph that averages
+many neighbors dilutes.
+
 ## Figures (`scripts/figures.py`)
 
 `python scripts/figures.py` redraws every figure from files the pipeline already wrote (seconds, nothing is
@@ -415,6 +484,9 @@ refit) into `figures/`, at 1920 x 1080 for slides and video. In story order:
 | `fig09_disagreement.png` | The gain comes from the days the models disagree most |
 | `fig10_clustering.png` | Market-residual correlation matrix ordered by clustering, with sectors |
 | `fig11_april_2025.png` | Case: the April 2025 tariff sell-off, actual vs both forecasts |
+| `fig12_new_stock.png` | A new stock: gain from the sector vs days of its own history, live average vs fixed label vs random |
+| `fig13_shock_rival_vs_sector.png` | After a company's own shock: sector peers vs closest rival vs industry leader vs random, same day and next day |
+| `fig14_new_stock_stand_in.png` | Who a new stock should copy: sector, industry leader, closest rival, top correlation neighbor |
 
 ## Known limitations (for the report)
 
