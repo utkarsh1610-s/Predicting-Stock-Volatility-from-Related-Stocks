@@ -77,6 +77,8 @@ and whether we have checked that it matters. Add a row whenever a new one is mad
 | 60 | GNNHAR architecture is fixed and untuned: 16 hidden units, Adam lr 1e-3, batch 8192, at most 30 epochs, patience 3; 10 seeds, forecast = mean of the seeds' log-vol forecasts | utkarsh | Tune on 2019; 3 seeds (the first run) | yes, seeds: 3 seeds overstated the gain beyond the market two to three times and flipped the verdict to "mixed" (GNNHAR finding below) |
 | 61 | GNNHAR verdict rule (in the script's docstring, written before running): graph-specific only if gnn_G beats every random twin by >1% QLIKE with DM p<0.05 AND gnn_market+G beats gnn_market by >0.5% with p<0.05 and still better without Feb-Apr 2020; market-wide only if gnn_market+G improves on gnn_market by <0.5% | utkarsh | Same rule as the linear placebo (#47) with its 1 pp market condition | n/a |
 | 62 | Stock clustering: average linkage on 1 - residual correlation, k = 5..25 with k = 11 (number of GICS sectors) as the main comparison; stocks need 500 training days and pairs 250 shared days (pairs with less count as uncorrelated) | utkarsh | Ward or spectral clustering; choose k by silhouette; drop pairs with little overlap | no. Descriptive, no decision rule |
+| 63 | Per-group analysis (`scripts/group_analysis.py`): VIX on the forecast day (> 25 = stressed); recent volatility = the stock's `har_22` against its own quartiles from rows before the scored period (needs 250 such rows); GICS sector. Reading rule fixed on validation before the test years were scored: an expectation is "supported" if two of the three model families meet it with p < 0.05; per-group significance at Bonferroni 0.05 / tests in the grouping | utkarsh | Quartiles across all stocks (would mostly sort stocks, not days); VIX terciles; per-group p without correction | n/a. See the per-group finding below |
+| 64 | Test years scored **once**, with every setting as on validation (trees keep their validation-tuned hyper-parameters; GNNHAR 10 seeds, fit on training years only). Nothing was changed after seeing them | utkarsh | Refit on train + validation before scoring test (more data, but a different model from the one validated) | n/a |
 
 ## Research design (all from the proposal)
 
@@ -137,6 +139,24 @@ is weak for most stocks. Silhouette is 0.04 to 0.06 for every k and 0.046 for th
 (0.16), managed care and hospitals (0.15), cable and media (0.14), Energy with materials (0.10); the two largest clusters (146 and
 80 stocks) are catch-alls at 0.05. Cross-sector pairs sharing a cluster are sensible (oil producers with FCX, homebuilders with
 Masco, AMZN with META). Agrees with the same-day clustering finding. Descriptive; groups named after looking.
+
+**Test-year finding (`results/*_with_test.csv`, 2022-2025, scored once; utkarsh).** The proposal's success measure is met:
+with neighbors beats without in every family, significantly (HAR -2.7% / -2.4%, trees -1.5% / -1.1%, GNNHAR -2.9% / -2.5%,
+sector / correlation graph, p <= 0.002). The gain is about 40% of its validation size, close to the validation number without
+COVID. It is still market-wide: the market average beats both real graphs (p=0.01, 0.004), and the real graphs equal their
+random twins (no twin comparison with p<0.17). GNNHAR verdict (#61): market-wide only. New on test: the graph adds a small but
+statistically clear extra on top of the market (-0.23% sector, -0.38% correlation, both p<0.001), below the rule's 0.5% line; four
+calm years make it precise. The fixed sector graph beats the correlation graph (HAR p=0.03, trees p<0.001). Trees and GNNHAR add
+under 1% over linear HAR with the same inputs.
+
+**Per-group finding (`results/groups*.csv`, validation and test; utkarsh).** (1) Stressed days (VIX > 25): the HAR and GNNHAR
+neighbor gain is 3 to 7 times the calm-day gain (test -7.5% vs -1.9% for HAR), but the difference is not significant (validation
+p=0.05 to 0.07, test p=0.3 to 0.45; stressed days come in a few long episodes). Trees show no stress pattern; they already see VIX.
+Not supported by the rule (#63). (2) Banks and chip makers: Financials and Real Estate gain most on test, Information Technology
+least (not significant). Not supported. (3) Quiet stocks gain too, in all three families on both splits: supported. The small
+graph-beyond-market extra on test is larger for quiet stocks than volatile ones (p<0.002), an untested guess: for a quiet stock, its
+own recent history says little about tomorrow and peers fill in.
+
 
 ## What the two reference papers do and do not tell us
 

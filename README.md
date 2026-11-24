@@ -12,6 +12,13 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+LightGBM (`scripts/trees.py`) needs the OpenMP runtime. On macOS either `brew install libomp`, or,
+without Homebrew, borrow the copy that ships with PyTorch for the session:
+
+```bash
+export DYLD_FALLBACK_LIBRARY_PATH=$PWD/.venv/lib/python3.13/site-packages/torch/lib
+```
+
 ## Getting the data (use the shared snapshot, don't re-download)
 
 1. Get `finance_data_snapshot_2026-11-14.zip` from the team Drive and unzip it in the
@@ -39,6 +46,7 @@ Run from the project root with the venv active:
 | 5 | `scripts/baselines.py` | `results/baseline_*.csv`, `data/predictions/<model>.parquet` |
 | 6 | `scripts/trees.py` | `results/trees_*.csv`, `data/predictions/gbt*.parquet` |
 | 7 | `scripts/gnnhar.py` | `results/gnnhar*.csv`, `data/predictions/gnn_*.parquet`, `nn_own.parquet` |
+| 8 | `scripts/group_analysis.py` | `results/groups*.csv`: neighbor gain by market stress, recent volatility and sector |
 | clustering | `scripts/stock_clusters.py` | `results/stock_clusters.csv`, `cluster_quality.csv`, `cluster_summary.csv`, `cluster_pairs.csv` |
 
 Settings shared by all steps live in `scripts/config.py`.
@@ -287,6 +295,80 @@ Results (471 stocks with at least 500 training days, 2010-2019):
 - This matches the same-day clustering finding (DECISIONS.md): co-movement beyond the market is concentrated in
   Utilities, Real Estate and Energy, and small elsewhere; banks also stand out here. Descriptive only; groups named
   after looking.
+
+## Test years 2022-2025 (scored once)
+
+Every model was fit exactly as on validation (trees keep the hyper-parameters chosen on validation;
+GNNHAR is fit on the training years, 10 seeds) and scored once on 2022-2025. Files: `results/*_with_test.csv`,
+`results/groups_test.csv`. These are the proposal's success numbers.
+
+**Success measure (proposal 4b): met.** Every model family beats its no-neighbor version on the test
+years, significantly (DM test on daily mean QLIKE):
+
+| With neighbors vs without | Sector graph | Correlation graph |
+|---|---|---|
+| Linear HAR (`har_sector`/`har_corr` vs `har`) | -2.72% (p=0.002) | -2.38% (p=0.002) |
+| Trees (`gbt_sector`/`gbt_corr` vs `gbt`) | -1.54% (p<0.001) | -1.06% (p<0.001) |
+| GNNHAR (`gnn_sector`/`gnn_corr` vs `nn_own`) | -2.89% (p=0.001) | -2.51% (p=0.001) |
+
+QLIKE, test years (lower is better):
+
+| Model | QLIKE | | Model | QLIKE |
+|---|---|---|---|---|
+| naive | 0.5374 | | nn_own | 0.2957 |
+| har | 0.2966 | | gnn_sector | 0.2871 |
+| har_sector | 0.2885 | | gnn_corr | 0.2883 |
+| har_corr | 0.2895 | | gnn_market | 0.2857 |
+| gbt | 0.2903 | | gnn_market+sector | 0.2851 |
+| gbt_sector | 0.2859 | | gnn_market+corr | 0.2846 |
+| gbt_corr | 0.2873 | | random twins (sector / corr) | 0.2865-0.2872 / 0.2882-0.2890 |
+
+What the test years add to the validation picture:
+- **The gain is about 40% of its validation size** (-2.4% to -2.9% vs -6% to -7%): the test years have no
+  COVID-scale crash. That matches the validation numbers without Feb-Apr 2020.
+- **Still market-wide.** The market average beats both real graphs (sector +0.50% worse, p=0.01;
+  correlation +0.89%, p=0.004), and the real graphs equal their random twins (sector +0.09% on average,
+  correlation -0.15%; no twin comparison has p<0.17). GNNHAR verdict: **market-wide only** for both graphs.
+- **A small, real extra on top of the market.** Graph on top of the market average: -0.23% (sector, p<0.001)
+  and -0.38% (correlation, p<0.001). Below the 0.5% line of the verdict rule, but unlike on validation it is
+  statistically clear: with four calm years the estimate is precise. It is concentrated in quiet stocks (see below).
+- **The fixed sector graph beats the monthly correlation graph** for linear HAR (p=0.03) and trees (p<0.001).
+- **Nonlinearity adds little.** Trees vs HAR with the same inputs: -0.9% and -0.8% (p=0.15, 0.26). GNNHAR vs
+  the QLIKE-trained linear model with the same inputs: -0.46% and -0.41%. Without a graph, GNNHAR = HAR (p=0.20).
+
+## Per-group analysis (`scripts/group_analysis.py`)
+
+Proposal 4c.1: is the neighbor gain bigger on stressed days, in tightly linked sectors, or only in
+already-volatile stocks? Groups use information known on the forecast day: VIX > 25 (stressed) vs <= 25;
+the stock's 22-day volatility against its own quartiles from before the scored period; GICS sector.
+Each with/without pair is scored on the group's rows, with a DM test per group and Newey-West tests for
+"the gain differs between stressed and calm days" and "between top and bottom quartile". The reading rule
+(an expectation counts only if two of the three model families meet it with p < 0.05) was fixed on
+validation before the test years were scored. `python scripts/group_analysis.py [--split test]`, seconds.
+
+| QLIKE change, with vs without neighbors (sector graph) | Validation 2020-21 | Test 2022-25 |
+|---|---|---|
+| HAR, calm / stressed days | -2.2% / -15.4% | -1.9% / -7.5% |
+| GNNHAR, calm / stressed days | -2.4% / -15.1% | -2.2% / -7.2% |
+| Trees, calm / stressed days | -1.9% / -1.7% | -1.6% / -1.3% |
+| HAR, quiet / volatile stocks (bottom / top quartile) | -2.7% / -9.7% | -1.9% / -3.4% |
+| Stressed days in the period | 175 of 505 | 157 of 1003 |
+
+- **(1) Bigger gain on stressed days: not supported by the rule.** For HAR and GNNHAR the gain on stressed days
+  is 3 to 7 times the calm-day gain, but the difference is not significant (validation p=0.05 to 0.07, test
+  p=0.3 to 0.45): stressed days come in a few long episodes (COVID, 2022), so there are few independent ones.
+  The trees show no stress pattern at all; they already get VIX as an input, which is the market-level
+  information the neighbors carry for the other models. The market-only network shows the same stress
+  pattern as the graphs (-16.3% / -7.5% on stressed days).
+- **(3) Quiet stocks gain too: supported** on both splits, in all three families (test: -1.4% to -2.4% in the
+  bottom quartile, mostly significant). Volatile stocks gain more, but not significantly more.
+  The small graph-beyond-market extra is the exception: it is larger for **quiet** stocks (-0.48% / -0.84% vs
+  -0.20% / -0.29% in the top quartile, difference p<0.002 on test).
+- **(2) Bigger gain in banks and chip makers: not supported.** Financials and Real Estate do gain most on test
+  (-3.8% and -3.9% for HAR with sector peers, vs -2.7% overall), but Information Technology gains least
+  (-1.6%, not significant), and Energy is not significant either. Validation is similar: Utilities, Real Estate
+  and Financials on top, Information Technology near the bottom. Sector results are many tests; few clear the
+  Bonferroni line (marked `significant_bonferroni` in the CSV).
 
 ## Known limitations (for the report)
 
