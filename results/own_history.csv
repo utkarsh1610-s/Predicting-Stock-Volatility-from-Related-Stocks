@@ -1,0 +1,61 @@
+scope,comparison,own_history,qlike_change,dm_p,qlike_change_exCOVID,rows,flag
+ALL,sector beyond market,without,-0.019970158,4.3415244e-25,-0.0182226,242286,True
+ALL,corr beyond market,without,-0.063027499,4.1603152e-27,-0.063489515,242286,True
+ALL,sector beyond market,with,-0.00058949686,0.061966662,-0.00028516416,242286,False
+ALL,corr beyond market,with,-0.00095622654,0.14027825,-0.00071326469,242286,False
+ALL,own history beyond market + stock level,-,-0.21913895,7.4822878e-92,-0.21755668,242286,False
+Communication Services,sector beyond market,without,0.0071872806,0.055385319,0.0044070038,10100,False
+Communication Services,corr beyond market,without,-0.04576619,4.4888532e-15,-0.041854096,10100,True
+Communication Services,sector beyond market,with,-0.0014544893,0.12164274,-0.0014953405,10100,False
+Communication Services,corr beyond market,with,0.00060970124,0.61392861,0.0012851449,10100,False
+Communication Services,own history beyond market + stock level,-,-0.25063251,3.8053903e-32,-0.24495283,10100,False
+Consumer Discretionary,sector beyond market,without,0.010012175,0.061969396,0.0034993588,22725,False
+Consumer Discretionary,corr beyond market,without,-0.12998254,1.5462594e-23,-0.13483887,22725,True
+Consumer Discretionary,sector beyond market,with,0.0010315273,0.02593096,0.0009877207,22725,False
+Consumer Discretionary,corr beyond market,with,-0.0013713251,0.23221549,-0.0016890611,22725,False
+Consumer Discretionary,own history beyond market + stock level,-,-0.32809516,1.7161026e-45,-0.33388227,22725,False
+Consumer Staples,sector beyond market,without,-0.050006169,0.10988309,0.0022624679,16138,False
+Consumer Staples,corr beyond market,without,-0.046665899,1.3336933e-07,-0.032952126,16138,True
+Consumer Staples,sector beyond market,with,0.0023351007,0.34553567,0.00031770287,16138,False
+Consumer Staples,corr beyond market,with,-0.0033016841,0.050307081,-0.0020293968,16138,False
+Consumer Staples,own history beyond market + stock level,-,-0.22770375,9.454639e-09,-0.17825046,16138,False
+Energy,sector beyond market,without,-0.12176036,6.1397765e-06,-0.12636897,10100,True
+Energy,corr beyond market,without,-0.14733074,1.3907246e-06,-0.17159408,10100,True
+Energy,sector beyond market,with,0.003563866,0.33398338,0.0077025918,10100,False
+Energy,corr beyond market,with,0.00012026216,0.95634147,0.0032111809,10100,False
+Energy,own history beyond market + stock level,-,-0.35605353,4.623473e-28,-0.37659266,10100,False
+Financials,sector beyond market,without,0.0013291375,0.85866538,-0.0043145026,37370,False
+Financials,corr beyond market,without,-0.031809727,3.4523838e-07,-0.033476919,37370,True
+Financials,sector beyond market,with,0.0016983679,0.16238978,0.00066970341,37370,False
+Financials,corr beyond market,with,-0.00041652445,0.51377127,-0.00063134967,37370,False
+Financials,own history beyond market + stock level,-,-0.16201833,1.3019262e-28,-0.17031836,37370,False
+Health Care,sector beyond market,without,-0.013832219,0.066570683,-0.019583792,29244,False
+Health Care,corr beyond market,without,-0.033042419,1.7770346e-22,-0.030629431,29244,True
+Health Care,sector beyond market,with,0.005447544,0.31502333,-0.0018626846,29244,False
+Health Care,corr beyond market,with,0.0013714288,0.20648634,0.00045625622,29244,False
+Health Care,own history beyond market + stock level,-,-0.16860817,1.2352607e-48,-0.16294928,29244,False
+Industrials,sector beyond market,without,-0.014878143,0.024884018,-0.018284296,37852,False
+Industrials,corr beyond market,without,-0.041831452,2.7174387e-10,-0.044434018,37852,True
+Industrials,sector beyond market,with,0.0030646642,0.42637638,-0.0015747437,37852,False
+Industrials,corr beyond market,with,0.00020657475,0.90414775,-0.00077438705,37852,False
+Industrials,own history beyond market + stock level,-,-0.15167668,4.9033533e-27,-0.15356086,37852,False
+Information Technology,sector beyond market,without,-0.067570147,6.7718467e-10,-0.06163679,36865,True
+Information Technology,corr beyond market,without,-0.024799694,1.3153553e-06,-0.020681972,36865,True
+Information Technology,sector beyond market,with,-0.0003476088,0.89987947,-0.0014834342,36865,False
+Information Technology,corr beyond market,with,-0.00013819965,0.90826631,-0.0007962303,36865,False
+Information Technology,own history beyond market + stock level,-,-0.23943412,4.7151352e-36,-0.22509906,36865,False
+Materials,sector beyond market,without,-0.0045240963,0.52409363,-0.0075437632,11615,False
+Materials,corr beyond market,without,-0.02921881,0.00014013668,-0.031813198,11615,True
+Materials,sector beyond market,with,0.0011425338,0.10348746,0.0008327654,11615,False
+Materials,corr beyond market,with,0.0032549409,0.19067623,0.0007834735,11615,False
+Materials,own history beyond market + stock level,-,-0.18705886,2.1300388e-21,-0.20053918,11615,False
+Real Estate,sector beyond market,without,-0.073958194,0.00044788862,-0.073779626,15127,True
+Real Estate,corr beyond market,without,-0.19135338,2.2214558e-08,-0.19961863,15127,True
+Real Estate,sector beyond market,with,-0.0042627241,0.034001158,-0.0025836479,15127,False
+Real Estate,corr beyond market,with,-0.0064226283,0.014284061,-0.0039346562,15127,False
+Real Estate,own history beyond market + stock level,-,-0.28440524,1.6224464e-10,-0.28940699,15127,False
+Utilities,sector beyond market,without,-0.16590614,0.01666549,-0.060979632,15150,False
+Utilities,corr beyond market,without,-0.18801125,0.005461463,-0.093163947,15150,False
+Utilities,sector beyond market,with,0.0029517751,0.57409167,0.002668422,15150,False
+Utilities,corr beyond market,with,-0.0022028638,0.35490015,0.0010231643,15150,False
+Utilities,own history beyond market + stock level,-,-0.29446847,0.00019077221,-0.21402036,15150,False
