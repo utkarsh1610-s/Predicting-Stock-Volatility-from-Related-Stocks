@@ -1,0 +1,51 @@
+kind,ticker_a,company_a,sector_a,ticker_b,company_b,sector_b,residual_corr,same_cluster
+"cross-sector, same cluster",DVN,Devon Energy,Energy,FCX,Freeport-McMoRan,Materials,0.46999804,True
+"cross-sector, same cluster",MAS,Masco,Industrials,PHM,PulteGroup,Consumer Discretionary,0.45446584,True
+"cross-sector, same cluster",COP,ConocoPhillips,Energy,FCX,Freeport-McMoRan,Materials,0.43842336,True
+"cross-sector, same cluster",AMZN,Amazon,Consumer Discretionary,META,Meta Platforms,Communication Services,0.43364344,True
+"cross-sector, same cluster",LEN,Lennar,Consumer Discretionary,MAS,Masco,Industrials,0.41698985,True
+"cross-sector, same cluster",NRG,NRG Energy,Utilities,OKE,Oneok,Energy,0.41513063,True
+"cross-sector, same cluster",APA,APA Corporation,Energy,FCX,Freeport-McMoRan,Materials,0.41248191,True
+"cross-sector, same cluster",DHI,D. R. Horton,Consumer Discretionary,MAS,Masco,Industrials,0.40489893,True
+"cross-sector, same cluster",NOW,ServiceNow,Information Technology,VEEV,Veeva Systems,Health Care,0.3925044,True
+"cross-sector, same cluster",META,Meta Platforms,Communication Services,NOW,ServiceNow,Information Technology,0.38701681,True
+"cross-sector, same cluster",EQT,EQT Corporation,Energy,PCG,PG&E Corporation,Utilities,0.37451725,True
+"cross-sector, same cluster",FCX,Freeport-McMoRan,Materials,TRGP,Targa Resources,Energy,0.37451098,True
+"cross-sector, same cluster",FCX,Freeport-McMoRan,Materials,WMB,Williams Companies,Energy,0.37257763,True
+"cross-sector, same cluster",VEEV,Veeva Systems,Health Care,WDAY,"Workday, Inc.",Information Technology,0.36782755,True
+"cross-sector, same cluster",FCX,Freeport-McMoRan,Materials,NRG,NRG Energy,Utilities,0.36556315,True
+"cross-sector, same cluster",HIG,Hartford (The),Financials,MAS,Masco,Industrials,0.36377287,True
+"cross-sector, same cluster",FCX,Freeport-McMoRan,Materials,OKE,Oneok,Energy,0.3631886,True
+"cross-sector, same cluster",PANW,Palo Alto Networks,Information Technology,VEEV,Veeva Systems,Health Care,0.36315739,True
+"cross-sector, same cluster",META,Meta Platforms,Communication Services,PHM,PulteGroup,Consumer Discretionary,0.35990722,True
+"cross-sector, same cluster",MAS,Masco,Industrials,META,Meta Platforms,Communication Services,0.35867035,True
+"cross-sector, same cluster",NRG,NRG Energy,Utilities,WMB,Williams Companies,Energy,0.3569309,True
+"cross-sector, same cluster",CRM,Salesforce,Information Technology,META,Meta Platforms,Communication Services,0.35281544,True
+"cross-sector, same cluster",NXPI,NXP Semiconductors,Information Technology,PSX,Phillips 66,Energy,0.35201728,True
+"cross-sector, same cluster",NRG,NRG Energy,Utilities,TRGP,Targa Resources,Energy,0.35081003,True
+"cross-sector, same cluster",CRM,Salesforce,Information Technology,VEEV,Veeva Systems,Health Care,0.35040866,True
+"same sector, split apart",HIG,Hartford (The),Financials,IBKR,Interactive Brokers,Financials,-0.25918873,False
+"same sector, split apart",GE,GE Aerospace,Industrials,UAL,United Airlines Holdings,Industrials,-0.23665062,False
+"same sector, split apart",HPE,Hewlett Packard Enterprise,Information Technology,KLAC,KLA Corporation,Information Technology,-0.23663355,False
+"same sector, split apart",COR,Cencora,Health Care,VEEV,Veeva Systems,Health Care,-0.21952114,False
+"same sector, split apart",LITE,Lumentum,Information Technology,NXPI,NXP Semiconductors,Information Technology,-0.21804432,False
+"same sector, split apart",DAL,Delta Air Lines,Industrials,GE,GE Aerospace,Industrials,-0.20476422,False
+"same sector, split apart",AFL,Aflac,Financials,IBKR,Interactive Brokers,Financials,-0.20316756,False
+"same sector, split apart",COHR,Coherent Corp.,Information Technology,NXPI,NXP Semiconductors,Information Technology,-0.19453973,False
+"same sector, split apart",ADP,Automatic Data Processing,Industrials,MAS,Masco,Industrials,-0.18225621,False
+"same sector, split apart",COHR,Coherent Corp.,Information Technology,HPE,Hewlett Packard Enterprise,Information Technology,-0.18055246,False
+"same sector, split apart",ADP,Automatic Data Processing,Industrials,URI,United Rentals,Industrials,-0.18035487,False
+"same sector, split apart",HBAN,Huntington Bancshares,Financials,PYPL,PayPal,Financials,-0.17436148,False
+"same sector, split apart",AIG,American International Group,Financials,IBKR,Interactive Brokers,Financials,-0.17281726,False
+"same sector, split apart",FFIV,"F5, Inc.",Information Technology,ZBRA,Zebra Technologies,Information Technology,-0.17117388,False
+"same sector, split apart",FITB,Fifth Third Bancorp,Financials,PYPL,PayPal,Financials,-0.16756706,False
+"same sector, split apart",DAL,Delta Air Lines,Industrials,GWW,W. W. Grainger,Industrials,-0.16574728,False
+"same sector, split apart",HWM,Howmet Aerospace,Industrials,MMM,3M,Industrials,-0.16562704,False
+"same sector, split apart",KEY,KeyCorp,Financials,PYPL,PayPal,Financials,-0.16311566,False
+"same sector, split apart",BSX,Boston Scientific,Health Care,VTRS,Viatris,Health Care,-0.16175352,False
+"same sector, split apart",CVS,CVS Health,Health Care,VEEV,Veeva Systems,Health Care,-0.16131516,False
+"same sector, split apart",A,Agilent Technologies,Health Care,BMY,Bristol Myers Squibb,Health Care,-0.15928778,False
+"same sector, split apart",FIX,Comfort Systems USA,Industrials,GE,GE Aerospace,Industrials,-0.15880353,False
+"same sector, split apart",PYPL,PayPal,Financials,RF,Regions Financial Corporation,Financials,-0.1587862,False
+"same sector, split apart",ALLE,Allegion,Industrials,GE,GE Aerospace,Industrials,-0.15665374,False
+"same sector, split apart",AZO,AutoZone,Consumer Discretionary,MGM,MGM Resorts,Consumer Discretionary,-0.15631151,False

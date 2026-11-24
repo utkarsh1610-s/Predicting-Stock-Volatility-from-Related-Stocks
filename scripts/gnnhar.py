@@ -15,7 +15,7 @@ normalization is identical for the sector graph (every sector is a clique) and c
 correlation graph (out-degree 10 for every stock). Because a day's graph layer reduces to the
 neighbor means, the inputs are the same neighbor features the linear and tree models use.
 
-Models (each fit with 3 seeds; the reported forecast is the mean of the seeds' log-vol forecasts):
+Models (each fit with 10 seeds; the reported forecast is the mean of the seeds' log-vol forecasts):
   nn_own              the network without any graph input (h_i only). Separates nonlinearity in the
                       stock's own history from information coming through the graph. Neither
                       reference paper has this control.
@@ -63,7 +63,7 @@ from metrics import mse_logvol, qlike, qlike_loss
 from placebo import MKT, RCOR, RSEC, market_edges, random_corr_edges, random_sector_edges, renamed
 from sensitivity import compare
 
-SEEDS = range(3)
+SEEDS = range(10)
 HIDDEN, LR, BATCH, MAX_EPOCHS, PATIENCE = 16, 1e-3, 8192, 30, 3
 ES_START = "2019-01-01"     # last training year, used only to choose the number of epochs
 NETS = {"nn_own": [],
