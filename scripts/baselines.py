@@ -24,6 +24,7 @@ import argparse
 
 import numpy as np
 import pandas as pd
+from scipy.optimize import minimize
 
 from config import FEATURES_DIR, PREDICTIONS_DIR, RESULTS_DIR
 from metrics import dm_test, mse_logvol, qlike, qlike_loss, smearing_factor
@@ -32,9 +33,13 @@ HAR = ["har_1", "har_5", "har_22"]
 SEC = ["sec_har_1", "sec_har_5", "sec_har_22"]
 COR = ["cor_har_1", "cor_har_5", "cor_har_22"]
 MODELS = {"naive": None, "har": HAR, "har_sector": HAR + SEC, "har_corr": HAR + COR}
+# the same inputs, but the linear model is trained to minimize QLIKE directly (no smearing needed)
+QMODELS = {"har_q": HAR, "har_sector_q": HAR + SEC, "har_corr_q": HAR + COR}
 CSV_FMT = "%.8g"    # results are committed; 8 digits keeps them identical across machines
 # (treatment, control) pairs for the Diebold-Mariano tests
-PAIRS = [("har", "naive"), ("har_sector", "har"), ("har_corr", "har"), ("har_corr", "har_sector")]
+PAIRS = [("har", "naive"), ("har_sector", "har"), ("har_corr", "har"), ("har_corr", "har_sector"),
+         ("har_q", "har"), ("har_sector_q", "har_q"), ("har_corr_q", "har_q"),
+         ("har_sector_q", "har_sector"), ("har_corr_q", "har_corr")]
 
 
 def load():
@@ -54,6 +59,37 @@ def fit_ols(x, y):
     return coef
 
 
+def fit_qlike_linear(x, y):
+    """Linear model for log volatility, trained to minimize mean QLIKE of the variance forecast.
+
+    Forecast variance is h = exp(2 * (b0 + x @ b)); with v = exp(2y) the loss is
+    mean(v/h - log(v/h) - 1) = mean(v * exp(-2z) + 2z) - const, z = b0 + x @ b. It is convex in b,
+    and its minimizer calibrates the level of the forecast, which OLS on logs does not (OLS
+    forecasts the median variance, below the mean). Features are centered for conditioning and the
+    intercept is mapped back; OLS plus a smearing shift is the starting point.
+    """
+    xm = x.mean(axis=0)
+    a = np.column_stack([np.ones(len(x)), x - xm])
+    v = np.exp(2 * y)
+
+    def loss(b):
+        z = a @ b
+        return float(np.mean(v * np.exp(-2 * z) + 2 * z))
+
+    def grad(b):
+        z = a @ b
+        return 2 * a.T @ (1 - v * np.exp(-2 * z)) / len(y)
+
+    b0 = fit_ols(x - xm, y)
+    b0[0] += 0.5 * np.log(np.mean(np.exp(2 * (y - a @ b0))))      # smearing shift as a starting point
+    res = minimize(loss, b0, jac=grad, method="L-BFGS-B", options={"maxiter": 500})
+    if not res.success and np.linalg.norm(grad(res.x)) > 1e-5:
+        raise RuntimeError(f"QLIKE fit did not converge: {res.message}")
+    b = res.x.copy()
+    b[0] -= xm @ b[1:]                                            # back to uncentered inputs
+    return b
+
+
 def predict_ols(coef, x):
     return coef[0] + np.asarray(x) @ coef[1:]
 
@@ -70,6 +106,10 @@ def fit_and_predict(df):
         coefs[name] = fit_ols(x[train], df["y"].to_numpy()[train])
         yhat[name] = predict_ols(coefs[name], x)
         smear[name] = smearing_factor(df["y"].to_numpy()[train], yhat[name][train])
+    for name, cols in QMODELS.items():
+        x = df[cols].to_numpy()
+        coefs[name] = fit_qlike_linear(x[train], df["y"].to_numpy()[train])
+        yhat[name], smear[name] = predict_ols(coefs[name], x), 1.0
     return yhat, smear, coefs
 
 

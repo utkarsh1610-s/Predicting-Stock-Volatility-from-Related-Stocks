@@ -41,6 +41,21 @@ Run from the project root with the venv active:
 
 Settings shared by all steps live in `scripts/config.py`.
 
+### Analysis scripts
+
+These test whether the neighbor gain comes from specific links or from the market-wide volatility
+level. All score **validation only**; the test years stay untouched. Each script states its decision
+rule in its docstring, and that rule was committed before the script was run.
+
+| Script | Question | Output |
+|---|---|---|
+| `scripts/sensitivity.py` | Do the untested design choices (graph window, refresh rate, neighbor count, weighting, winsorizing, pooled vs per-stock HAR) change the neighbor gain? | `results/sensitivity.csv` |
+| `scripts/placebo.py` | Does a market-wide average, or a random twin of each graph, do as well as the real graphs (linear HAR)? | `results/placebo.csv` |
+| `scripts/placebo_trees.py` | The same placebo with LightGBM | `results/placebo_trees.csv` |
+| `scripts/sector_check.py` | Does any single sector show a graph effect beyond the market? | `results/sector_check.csv` |
+
+Arguable choices and what each experiment found are logged in `DECISIONS.md`.
+
 ## The data is a frozen snapshot
 
 - Constituents scraped from Wikipedia on 2026-11-14; prices downloaded from Yahoo
@@ -119,9 +134,12 @@ The test years are scored only with `--include-test`; run that once, at the end,
 | `har` | OLS on `har_1/5/22`, pooled across stocks |
 | `har_sector` | `har` + sector peers' averaged `har_*` |
 | `har_corr` | `har` + correlation neighbors' averaged `har_*` |
+| `har_q`, `har_sector_q`, `har_corr_q` | the same three linear models, trained to minimize QLIKE directly (no smearing) |
 
 - **Same rows for every model.** Fit and scored on rows where both neighbor feature sets
   exist (19,161 of 1,867,262 rows dropped), so differences come from the features only.
+- **QLIKE-trained HAR** (`har_q`) is only 0.8% better than OLS with smearing on validation (0.2866 vs 0.2888, p=0.015),
+  so the smearing correction is a good approximation for the linear models. Neighbor gains are unchanged on top of it.
 - **QLIKE** uses variance `exp(2*yhat)` rescaled by a training-set smearing factor, because a
   log-model forecasts the median variance, which sits below the mean. The unscaled number is
   kept as `qlike_raw`. MSE is on log volatility.
