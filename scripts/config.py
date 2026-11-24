@@ -10,6 +10,8 @@ RAW_PRICE_DIR = Path("data/raw_full")
 PROCESSED_DIR = Path("data/processed")
 FEATURES_DIR = Path("data/features")
 GRAPHS_DIR = Path("data/graphs")
+PREDICTIONS_DIR = Path("data/predictions")
+RESULTS_DIR = Path("results")
 RUN_LOG = Path("data/run_info.txt")
 
 VIX = "^VIX"

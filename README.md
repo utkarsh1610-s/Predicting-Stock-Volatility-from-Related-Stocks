@@ -36,6 +36,7 @@ Run from the project root with the venv active:
 | 2 | `scripts/clean.py` | `data/processed/{stocks,vix}.parquet`, `cleaning_log.csv`, `wide_range_days.csv` |
 | 3 | `scripts/features.py` | `data/features/panel.parquet`, `winsor_bounds.json` |
 | 4 | `scripts/graphs.py` | `data/graphs/{sector,corr}_edges.parquet`, `data/features/neighbors.parquet` |
+| 5 | `scripts/baselines.py` | `results/baseline_*.csv`, `data/predictions/<model>.parquet` |
 
 Settings shared by all steps live in `scripts/config.py`.
 
@@ -105,6 +106,39 @@ Rules, all tested in `tests/test_graphs.py`:
   tomorrow's label exists.
 - **NaNs are not filled.** 1% of rows have no `cor_*` features (early 2010, new listings). When comparing a
   model with and without neighbors, score both on the rows where the neighbor features exist.
+
+## Baselines and evaluation (`scripts/baselines.py`, `scripts/metrics.py`)
+
+`python scripts/baselines.py` fits on the training years and reports train and validation.
+The test years are scored only with `--include-test`; run that once, at the end, with all models.
+
+| Model | Forecast of next-day log volatility |
+|---|---|
+| `naive` | today's value |
+| `har` | OLS on `har_1/5/22`, pooled across stocks |
+| `har_sector` | `har` + sector peers' averaged `har_*` |
+| `har_corr` | `har` + correlation neighbors' averaged `har_*` |
+
+- **Same rows for every model.** Fit and scored on rows where both neighbor feature sets
+  exist (19,161 of 1,867,262 rows dropped), so differences come from the features only.
+- **QLIKE** uses variance `exp(2*yhat)` rescaled by a training-set smearing factor, because a
+  log-model forecasts the median variance, which sits below the mean. The unscaled number is
+  kept as `qlike_raw`. MSE is on log volatility.
+- **Diebold-Mariano** tests use each day's cross-sectional mean QLIKE and a Newey-West variance.
+
+Validation 2020-2021 (QLIKE, lower is better):
+
+| Model | QLIKE | vs HAR | DM p vs HAR |
+|---|---|---|---|
+| naive | 0.481 | +66.6% | |
+| har | 0.289 | | |
+| har_sector | 0.268 | -7.0% | 0.012 |
+| har_corr | 0.271 | -6.1% | 0.021 |
+
+Read these with care. The gain is concentrated in the COVID crash: with Feb-Apr 2020 removed
+it is -2.5% (sector) and -1.9% (correlation), still significant (p < 0.001) but much smaller.
+On validation the fixed sector graph beats the correlation graph. Nothing is tuned yet, and
+the test years are untouched.
 
 ## Known limitations (for the report)
 
