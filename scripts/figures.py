@@ -3,7 +3,7 @@
   python scripts/figures.py            # writes figures/fig01_*.png ... (1920 x 1080)
 
 Needs: data/features/panel.parquet, data/graphs/*.parquet, data/predictions/har*_with_test.parquet and the
-results/*.csv files from steps 5-9 and the clustering. Colors: the first three slots of a colorblind-checked
+results/*.csv files from steps 5-10 and the clustering. Colors: the first three slots of a colorblind-checked
 categorical palette (blue, orange, aqua), gray for context, a blue-gray-red diverging scale for signed values.
 """
 import numpy as np
@@ -442,9 +442,128 @@ def fig_april():
     save(fig, "fig11_april_2025")
 
 
+# ---------------------------------------------------------------- 12-14. follow-up experiments
+def log_pct(x):
+    """Difference in log-vol -> % difference in volatility."""
+    return 100 * (np.exp(x) - 1)
+
+
+def fig_new_stock():
+    lv = pd.read_csv(R / "cold_start_levels.csv")
+    fig, axes = figure("A brand-new stock should borrow its sector's volatility, for about a week",
+                       "Change in QLIKE vs a forecast from the market average alone, when the stock has only its last k days of its own history.",
+                       ncols=2, sharey=True)
+    lines = [("market+sector", "Sector peers' live average", BLUE, "-"),
+             ("market+sector_level", "Sector label only (fixed level per sector)", AQUA, "--"),
+             ("market+random", "Random group of the same size", GRAY, "-")]
+    for ax, split, title in [(axes[0], "val", "Validation 2020-21"), (axes[1], "test", "Test 2022-25")]:
+        d = lv[lv["split"] == split]
+        base = d[d["peers"] == "market"].set_index("own_days")["qlike"]
+        days = list(base.index)
+        x = np.arange(len(days))
+        for key, label, color, ls in lines:
+            if key == "market+random":
+                q = d[d["peers"].str.startswith("market+random")].groupby("own_days")["qlike"].mean()
+            else:
+                q = d[d["peers"] == key].set_index("own_days")["qlike"]
+            v = 100 * (q.reindex(days) / base - 1)
+            ax.plot(x, v, color=color, ls=ls, lw=2, marker="o", ms=8, label=label)
+            if key == "market+sector":
+                for xi, vi in zip(x, v):
+                    ax.text(xi + 0.08, vi - 0.35, f"{vi:.1f}%", fontsize=10, color=INK2, va="top")
+        ax.axhline(0, color="#c3c2b7", lw=0.8)
+        ax.set_xticks(x, ["0\n(brand new)" if k == 0 else f"{k}\n(full HAR)" if k == 22 else str(k) for k in days])
+        ax.set_xlabel("Days of the stock's own history"); ax.set_title(title); pct_axis(ax)
+    axes[0].set_ylabel("Change in QLIKE vs market only")
+    axes[0].legend(loc="lower right", fontsize=10.5)
+    axes[0].set_ylim(-9, 0.6)
+    fig.subplots_adjust(bottom=0.19)
+    fig.text(0.04, 0.03, "Almost all of the day-0 gain is the sector's usual level (utilities calm, energy wild): the fixed label matches the live average. "
+             "After ~5 days the stock's own history takes over.", fontsize=10, color=MUTED)
+    save(fig, "fig12_new_stock")
+
+
+def fig_shock():
+    path, sp = pd.read_csv(R / "shock_path.csv"), pd.read_csv(R / "shock_spillover.csv")
+    cs = pd.read_csv(R / "competitor_shock.csv")
+    fig, axes = figure("When a company has its own shock, its direct rival reacts, not the sector",
+                       "Extra volatility of stocks whose linked company had a big own shock (market calm), vs other stocks that day.\nClosest rival and industry leader are picked within the same GICS sub-industry.",
+                       ncols=2)
+    cats = [("Any sector\npeer", "sec"), ("Closest\nrival", "comp_sub"), ("Industry\nleader", "comp_leader"), ("Random\nstock", "random")]
+    x, w = np.arange(len(cats)), 0.36
+    for ax, resp, title in [(axes[0], "same day", "Same day"), (axes[1], "next day, beyond HAR", "Next day, beyond what the forecast expected")]:
+        for k, (split, color, label) in enumerate([("val", BLUE, "Validation 2020-21"), ("test", ORANGE, "Test 2022-25")]):
+            vals, ps, rngs = [], [], []
+            for _, key in cats:
+                if key == "sec":
+                    if resp == "same day":
+                        r = path[(path["split"] == split) & (path["day"] == 0)].iloc[0]
+                    else:
+                        r = sp[(sp["split"] == split) & (sp["groups"] == "sec")].iloc[0]
+                    vals.append(log_pct(r["exposed_minus_unexposed"])); ps.append(r["nw_p"]); rngs.append(None)
+                elif key == "random":
+                    r = cs[(cs["split"] == split) & cs["link"].str.startswith("random") & (cs["response"] == resp)]
+                    vals.append(log_pct(r["exposed_minus_unexposed"].mean())); ps.append(r["p"].min())
+                    rngs.append((log_pct(r["exposed_minus_unexposed"].min()), log_pct(r["exposed_minus_unexposed"].max())))
+                else:
+                    r = cs[(cs["split"] == split) & (cs["link"] == key) & (cs["response"] == resp)].iloc[0]
+                    vals.append(log_pct(r["exposed_minus_unexposed"])); ps.append(r["p"]); rngs.append(None)
+            xs = x + (k - 0.5) * (w + 0.03)
+            ax.bar(xs, vals, w, color=color, label=label)
+            top = max(max(vals), 0.1)
+            for xi, v, p, rg in zip(xs, vals, ps, rngs):
+                if rg:
+                    ax.plot([xi, xi], rg, color=INK2, lw=1.2)
+                hi = max(v, rg[1]) if rg else max(v, 0)
+                ax.text(xi, hi + top * 0.02, f"{v:.1f}%{'' if rg else stars(p)}", ha="center", va="bottom", fontsize=10, color=INK2)
+        ax.axhline(0, color="#c3c2b7", lw=0.8)
+        ax.set_xticks(x, [c[0] for c in cats], fontsize=10.5); ax.set_title(title); ax.grid(axis="x", visible=False)
+        pct_axis(ax)
+    axes[0].set_ylabel("Extra volatility of exposed stocks")
+    axes[1].legend(loc="upper right", fontsize=10.5)
+    fig.subplots_adjust(top=0.76, bottom=0.15, left=0.08)
+    fig.text(0.04, 0.03, "* p < 0.05, ** p < 0.01 (Newey-West). Random stock: mean of 5 draws, whisker = range of the draws. "
+             "Shock = own jump in the top 1% of training days while the market is calm.", fontsize=10, color=MUTED)
+    save(fig, "fig13_shock_rival_vs_sector")
+
+
+def fig_stand_in():
+    c = pd.read_csv(R / "competitor.csv")
+    c = c[(c["test"] == "A forecast, own history 0d") & (c["vs"] == "market only")]
+    cats = [("Sector average", "sec", True), ("Industry leader", "comp_leader", True),
+            ("Closest rival\n(by trading)", "comp_sub", False), ("Statistical twin\n(top correlation)", "comp_corr", False)]
+    fig, ax = figure("Who should a new stock copy? The sector on day 1, its closest rival once it has traded",
+                     "Change in QLIKE vs the market average alone, for a stock with none of its own volatility history.")
+    x, w = np.arange(len(cats)), 0.36
+    for k, (split, color, label) in enumerate([("val", BLUE, "Validation 2020-21"), ("test", ORANGE, "Test 2022-25")]):
+        d = c[c["split"] == split].set_index("link")
+        vals = [100 * d.loc[key, "change"] for _, key, _ in cats]
+        xs = x + (k - 0.5) * (w + 0.03)
+        bars = ax.bar(xs, vals, w, color=color, label=label)
+        for b, (_, _, day1) in zip(bars, cats):
+            if not day1:
+                b.set_hatch("//"); b.set_edgecolor(SURFACE)
+        for xi, v in zip(xs, vals):
+            ax.text(xi, v - 0.4 if v < 0 else v + 0.3, f"{v:.1f}%", ha="center", va="top" if v < 0 else "bottom", fontsize=10.5, color=INK2)
+    ax.axhline(0, color="#c3c2b7", lw=0.8)
+    ax.set_xticks(x, [c_[0] for c_ in cats]); ax.grid(axis="x", visible=False)
+    ax.set_ylabel("Change in QLIKE vs market only"); pct_axis(ax)
+    ax.legend(handles=[Patch(color=BLUE, label="Validation 2020-21"), Patch(color=ORANGE, label="Test 2022-25"),
+                       Patch(facecolor=GRAY, hatch="//", edgecolor=SURFACE, label="Needs ~60 days of the stock's own returns to pick")],
+              loc="lower left", fontsize=10.5)
+    ax.axvline(1.5, color=LIGHT, lw=1)
+    ax.set_ylim(-20, 3.5)
+    fig.subplots_adjust(left=0.1)
+    ax.text(0.5, 0.97, "Usable on day 1", transform=ax.get_xaxis_transform(), ha="center", va="top", fontsize=11, color=INK2)
+    ax.text(2.5, 0.97, "Usable after ~3 months of trading", transform=ax.get_xaxis_transform(), ha="center", va="top", fontsize=11, color=INK2)
+    fig.text(0.04, 0.03, "With full history every one of these adds only ~0.05% over the market. Two share classes of one company are never linked.",
+             fontsize=10, color=MUTED)
+    save(fig, "fig14_new_stock_stand_in")
+
+
 def main():
     for f in [fig_timeline, fig_graphs, fig_main, fig_placebo, fig_seeds, fig_curves, fig_stress,
-              fig_sectors, fig_disagreement, fig_clusters, fig_april]:
+              fig_sectors, fig_disagreement, fig_clusters, fig_april, fig_new_stock, fig_shock, fig_stand_in]:
         f()
 
 

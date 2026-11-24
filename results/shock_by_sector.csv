@@ -1,0 +1,23 @@
+split,sector,shock_days,exposed_minus_unexposed,nw_p
+val,Communication Services,58,0.019334,0.175209
+val,Consumer Discretionary,86,-0.00825579,0.343451
+val,Consumer Staples,85,-0.018316,0.0814814
+val,Energy,25,-0.0237047,0.235458
+val,Financials,114,-0.00857622,0.278907
+val,Health Care,137,0.0215062,0.0230354
+val,Industrials,107,-0.00478906,0.525573
+val,Information Technology,149,0.0189443,0.0121807
+val,Materials,47,0.0126725,0.443821
+val,Real Estate,36,0.0180413,0.277911
+val,Utilities,45,-0.0125203,0.408076
+test,Communication Services,193,0.0145503,0.0628814
+test,Consumer Discretionary,254,0.00893703,0.0808504
+test,Consumer Staples,255,-0.00284638,0.720343
+test,Energy,66,-0.0122409,0.572237
+test,Financials,308,-0.0128897,0.0345438
+test,Health Care,376,0.00952635,0.158835
+test,Industrials,327,-0.00786988,0.125461
+test,Information Technology,387,0.0163162,0.00587281
+test,Materials,144,-0.00201631,0.799695
+test,Real Estate,93,0.0235633,0.121761
+test,Utilities,128,-0.00498815,0.714688
