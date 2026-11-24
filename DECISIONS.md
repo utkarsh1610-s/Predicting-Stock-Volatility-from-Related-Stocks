@@ -4,7 +4,8 @@ Choices that could reasonably have gone another way. For each: who set it, what 
 and whether we have checked that it matters. Add a row whenever a new one is made.
 
 **Set by**: `proposal` = in the project proposal; `team` = pre-existing pipeline code (steps 1-2);
-`claude` = chosen while building steps 3-6, open to challenge.
+`claude` = chosen while building steps 3-6, open to challenge;
+`utkarsh` = chosen while building GNNHAR (step 7) and the stock clustering, open to challenge.
 **Checked?**: `yes` = sensitivity tested; `partly`; `no` = never tested, so we do not know if it matters.
 
 ## Data and cleaning (steps 1-2)
@@ -63,13 +64,19 @@ and whether we have checked that it matters. Add a row whenever a new one is mad
 | 48 | Tree placebo uses ONE fixed hyper-parameter setting (7 leaves, lr 0.03, 500 rows per leaf) for all models, 3 seeds for the random twins | claude | Tune each model separately (more optimism, tuning noise in the comparison) | partly: all earlier tuning runs chose this setting and a wider grid gained 0.06% |
 | 46 | When varying the window, `min_common` scales with it (2/3, as 40 of 60) | claude | A fixed minimum | no |
 | 49 | **Done (PR #10):** a QLIKE-trained HAR baseline (`har_q`, plus sector and correlation versions) alongside the OLS HAR | claude, from Zhang et al. (their HAR_Q beats OLS HAR by 1.9% QLIKE and 7.3% MSE at 1 day, so their headline gain over OLS HAR overstates the gain over a fair baseline) | Keep OLS HAR plus the smearing correction (#27) only | **yes**: `har_q` is only 0.8% better than OLS+smearing (QLIKE 0.2866 vs 0.2888, p=0.015); neighbor gains unchanged on top of it (-7.8% sector, -6.9% correlation). Smearing was a good approximation for linear models. Trees (L2 loss, smeared) are now 1.2% worse than `har_sector_q` and level with `har_corr_q`; a QLIKE objective for trees is untried |
-| 50 | **Planned:** build GNNHAR with **one graph layer** only | claude, from Zhang et al. (2- and 3-hop add no clear value; 3 layers over-smooth; on S&P 100, 4-5 layers are worse) | 2-3 layers | n/a |
-| 51 | **Planned:** run GNNHAR on the real graph, a random twin graph and the market (all-stocks) graph | claude | Run the real graph only, as the paper does | no (not built yet). Neither reference paper has this control |
+| 50 | **Built and run on validation (`scripts/gnnhar.py`):** GNNHAR with **one graph layer** only | claude, from Zhang et al. (2- and 3-hop add no clear value; 3 layers over-smooth; on S&P 100, 4-5 layers are worse) | 2-3 layers | n/a |
+| 51 | **Run on validation:** run GNNHAR on the real graph, a random twin graph and the market (all-stocks) graph | claude | Run the real graph only, as the paper does | yes, validation: real graphs no better than random twins or the market graph (GNNHAR finding below). Neither reference paper has this control |
 | 52 | **Planned:** consider the **Model Confidence Set** (as in Zhang et al.) for multi-model comparisons, in place of or alongside pairwise DM tests (#28, #40) | claude | Keep pairwise DM, correct for multiple comparisons | no (not built yet) |
-| 53 | GNNHAR has no per-stock identity embedding: its hidden values are computed each day from that day's inputs. "Cluster the learned embeddings" (#43) therefore needs a definition | **open, needs the team** | Average each stock's hidden state over days; cluster averaged HAR features instead | no |
+| 53 | GNNHAR has no per-stock identity embedding: its hidden values are computed each day from that day's inputs. "Cluster the learned embeddings" (#43) therefore needs a definition. **Decided:** cluster stocks on the correlation of their **market-residual** daily log-vol over the training years (`scripts/stock_clusters.py`), the co-movement the graphs are meant to carry | utkarsh | Average each stock's hidden state over days; cluster averaged HAR features | no |
 | 54 | Per-sector check: each sector gets its own QLIKE-trained regression; flag a sector/graph only if market+graph beats market by >1% with DM p<0.002 (about 0.05/22 tests) and >0.5% without Feb-Apr 2020. Written before running | claude | Pooled fit only (what the placebo did); a looser p | n/a. See the finding below |
 | 55 | Own-history test: without own history, the stock's mean log-vol over the TRAINING years replaces it (a constant per stock); QLIKE-trained linear models; pooled verdict rule written beforehand; per-sector results are hypothesis-generating (44 tests, p<0.001 and >1%) | claude | A different stand-in for "no own history" (e.g. a short history window); nonlinear models | n/a. See the finding below |
 | 56 | Same-day clustering analysis is restricted to 2010-2021 by construction, uses the mean log-vol of other stocks as the market factor (own series excluded), and the sector "excess" is the peer mean minus the market factor | claude | Include the test years (they are reserved); a volatility-weighted market factor | no. Exploratory, no decision rule |
+| 57 | GNNHAR aggregates neighbors by their **mean** (row-normalized adjacency), so a day's graph layer equals a hidden layer over [own `har_*`, neighbor-mean `har_*`] | utkarsh | The paper's symmetric normalization D^-1/2 A D^-1/2 (identical for the sector graph, whose sectors are cliques; close for the correlation graph, out-degree 10) | no |
+| 58 | GNNHAR adds an **`nn_own` control**: the same network with no graph input, to separate nonlinearity in a stock's own history from information that comes through the graph | utkarsh | Compare only with linear HAR, as the paper does | n/a. Not in either reference paper |
+| 59 | GNNHAR trains on **QLIKE** with inputs standardized on training years; HAR part starts at the QLIKE-trained linear fit; epochs chosen by early stopping on **2019** (fit on 2010-2018), then refit on all training years. Validation is never used to fit or tune | utkarsh | Early-stop on validation (as the trees tune on it); MSE loss plus smearing | no |
+| 60 | GNNHAR architecture is fixed and untuned: 16 hidden units, Adam lr 1e-3, batch 8192, at most 30 epochs, patience 3; 10 seeds, forecast = mean of the seeds' log-vol forecasts | utkarsh | Tune on 2019; 3 seeds (the first run) | yes, seeds: 3 seeds overstated the gain beyond the market two to three times and flipped the verdict to "mixed" (GNNHAR finding below) |
+| 61 | GNNHAR verdict rule (in the script's docstring, written before running): graph-specific only if gnn_G beats every random twin by >1% QLIKE with DM p<0.05 AND gnn_market+G beats gnn_market by >0.5% with p<0.05 and still better without Feb-Apr 2020; market-wide only if gnn_market+G improves on gnn_market by <0.5% | utkarsh | Same rule as the linear placebo (#47) with its 1 pp market condition | n/a |
+| 62 | Stock clustering: average linkage on 1 - residual correlation, k = 5..25 with k = 11 (number of GICS sectors) as the main comparison; stocks need 500 training days and pairs 250 shared days (pairs with less count as uncorrelated) | utkarsh | Ward or spectral clustering; choose k by silhouette; drop pairs with little overlap | no. Descriptive, no decision rule |
 
 ## Research design (all from the proposal)
 
@@ -114,6 +121,23 @@ is "redundant" for both graphs. Per sector, without own history: Utilities -16.6
 correlation graph is worth far more than the sector graph without own history; untested guess: correlated stocks stand in for the stock's
 own current level. A possible use this points to, untested: stocks with little or no history.
 
+**GNNHAR finding (`results/gnnhar.csv`, validation, 10 seeds; utkarsh).** The neural network gives the same answer as the
+linear placebo. Neighbors help a lot over own history (gnn_sector -6.9%, gnn_corr -6.1% vs nn_own), but the market graph helps
+significantly more (-8.0%; real graphs are 1.1% and 2.0% worse than it, p<=0.001), and the real graphs are no better than random
+twins (sector -0.01% to +0.95% worse, mean +0.41%; correlation -0.22% to +0.72%, mean +0.23%), even with the comparison tilted
+toward them (10-seed average vs single-seed twins). On top of the market graph: -0.27% (sector, p=0.14) and -0.43% (correlation,
+p=0.11), under 0.1% without Feb-Apr 2020, and slightly worse on MSE. The pre-written verdict (#61) is **market-wide only** for
+both graphs. Without a graph the network is no better than linear HAR (-0.83%, p=0.15); with a graph it beats the linear model
+with the same inputs by under 1% (p about 0.01). Seed check: a first run with 3 seeds put the gain beyond the market at 0.84% and
+0.92% (verdict "mixed"); 10 seeds cut it to 0.27% and 0.43%, so that gain was mostly seed noise. Validation only.
+
+**Stock clustering finding (`results/stock_clusters.csv`, `cluster_*.csv`, 2010-2019; utkarsh).** Market-residual co-movement
+is weak for most stocks. Silhouette is 0.04 to 0.06 for every k and 0.046 for the GICS sectors; ARI vs sectors is 0.18 to 0.26
+(0.25 at k = 11). Real groups at k = 11: Utilities with Real Estate (mean residual correlation 0.19), banks and asset managers
+(0.16), managed care and hospitals (0.15), cable and media (0.14), Energy with materials (0.10); the two largest clusters (146 and
+80 stocks) are catch-alls at 0.05. Cross-sector pairs sharing a cluster are sensible (oil producers with FCX, homebuilders with
+Masco, AMZN with META). Agrees with the same-day clustering finding. Descriptive; groups named after looking.
+
 ## What the two reference papers do and do not tell us
 
 Read by a delegated agent, then checked against pasted text from paper 1 (Table 1, Eq. 7, Section 5.1, Section 6.2, Conclusion). Paper 2 could only be read as an arXiv preprint; its published version was blocked.
@@ -146,7 +170,7 @@ trees cannot extrapolate, and March 2020 is far outside the 2010-2019 training r
 
 Still open, by how much each could change the headline result:
 - **Cold start:** do peers help when a stock has little or no history (new listings)? The own-history test points there; not run.
-- **Whether GNNHAR finds structure that our averaged-neighbor trees did not.** Correction to an earlier version of this line: GNNHAR does not learn per-neighbor weights. Its layer is a graph convolution, `ReLU(D^-1/2 A D^-1/2 H Theta)`, with a fixed degree-normalized adjacency and one shared transform of each stock's 1/5/22-day volatilities (Zhang et al., Eq. 7). Its neighbor information is close to what the tree placebo already saw, so a null result is the expectation. Test: real graph vs random twin vs market graph.
+- **Done (GNNHAR finding above): no clear evidence that it does.** ~~Whether GNNHAR finds structure that our averaged-neighbor trees did not.~~ Correction to an earlier version of this line: GNNHAR does not learn per-neighbor weights. Its layer is a graph convolution, `ReLU(D^-1/2 A D^-1/2 H Theta)`, with a fixed degree-normalized adjacency and one shared transform of each stock's 1/5/22-day volatilities (Zhang et al., Eq. 7). Its neighbor information is close to what the tree placebo already saw, so a null result is the expectation. Test: real graph vs random twin vs market graph.
 - **Trees and the COVID extrapolation guess** (above).
 - **Specific episodes** where links should matter more than the market (sector shocks, the March 2023 banks, which sits in the test years). Sector-by-sector averages over 2020-2021 found nothing.
 - #40: how many tests we run versus how we call something significant.

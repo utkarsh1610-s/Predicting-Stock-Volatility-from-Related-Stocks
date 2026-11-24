@@ -123,3 +123,56 @@ def test_return_matrix_blanks_across_gaps():
     stocks = pd.DataFrame({"date": cal.delete(2), "ticker": "A", "close": [1.0, 2.0, 3.0, 4.0]})
     r = return_matrix(stocks, cal)["A"]
     assert r.isna().tolist() == [True, False, True, True, False]
+
+
+# ---- configurable options used by the sensitivity sweep ----
+
+def test_sector_edges_can_use_the_finer_sub_industry_level():
+    stocks = pd.DataFrame({"ticker": list("ABCD"), "sector": ["x"] * 4,
+                           "sub_industry": ["p", "p", "q", "q"]})
+    pairs = set(zip(*sector_edges(stocks, level="sub_industry")[["ticker", "neighbor"]].T.values))
+    assert pairs == {("A", "B"), ("B", "A"), ("C", "D"), ("D", "C")}
+
+
+def test_weekly_graph_uses_only_days_before_each_week():
+    r = rand_returns()
+    base = corr_edges(r, freq="W", min_common=40)
+    week = pd.Timestamp("2019-06-03")                      # a Monday
+    assert week in set(base["month"])                      # period start is the Monday
+    d0 = r.index[r.index >= week][0]
+    wrecked = r.copy()
+    wrecked.loc[wrecked.index >= d0] = np.random.default_rng(9).normal(0, 0.05, wrecked[wrecked.index >= d0].shape)
+    alt = corr_edges(wrecked, freq="W", min_common=40)
+    pick = lambda df: df[df["month"] == week].sort_values(["ticker", "neighbor"]).reset_index(drop=True)
+    pd.testing.assert_frame_equal(pick(base), pick(alt))
+
+
+def test_quarterly_graph_has_one_graph_per_quarter():
+    e = corr_edges(rand_returns(), freq="Q")
+    assert set(e["month"]) <= {pd.Timestamp(d) for d in ["2019-04-01", "2019-07-01"]}
+    assert e["month"].nunique() == 2
+
+
+def test_neighbor_features_follow_the_refresh_period():
+    rows = _rows({"A": [1.0] * 6, "B": [3.0] * 6, "C": [5.0] * 6})   # 2019-05-29 .. 06-05
+    sec = pd.DataFrame({"ticker": ["A"], "neighbor": ["B"]})
+    # week of 05-27 links A->B; week of 06-03 links A->C
+    cor = pd.DataFrame({"month": pd.to_datetime(["2019-05-27", "2019-06-03"]),
+                        "ticker": ["A", "A"], "neighbor": ["B", "C"]})
+    out = neighbor_features(rows, sec, cor, freq="W").set_index(["ticker", "date"])
+    d = sorted(rows["date"].unique())
+    assert out.loc[("A", d[0]), "cor_har_1"] == 3.0        # 05-29 is in the first week
+    assert out.loc[("A", d[-1]), "cor_har_1"] == 5.0       # 06-05 is in the second week
+
+
+def test_correlation_weighting_is_a_weighted_mean_and_counts_neighbors():
+    rows = _rows({"A": [1.0, 1.0], "B": [3.0, 3.0], "C": [5.0, 5.0]})
+    sec = pd.DataFrame({"ticker": ["A"], "neighbor": ["B"]})
+    cor = pd.DataFrame({"month": pd.to_datetime(["2019-05-01"] * 2), "ticker": ["A", "A"],
+                        "neighbor": ["B", "C"], "corr": [0.9, 0.1]})
+    out = neighbor_features(rows, sec, cor, weight="corr").set_index(["ticker", "date"])
+    d0 = rows["date"].min()
+    assert out.loc[("A", d0), "cor_har_1"] == pytest.approx((0.9 * 3 + 0.1 * 5) / 1.0)
+    assert out.loc[("A", d0), "cor_n"] == 2                 # a count, not the total weight
+    equal = neighbor_features(rows, sec, cor).set_index(["ticker", "date"])
+    assert equal.loc[("A", d0), "cor_har_1"] == 4.0

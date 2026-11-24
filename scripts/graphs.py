@@ -33,23 +33,24 @@ def return_matrix(stocks, calendar):
     return np.log(close / close.shift(1))
 
 
-def sector_edges(stocks):
-    sec = stocks.drop_duplicates("ticker").set_index("ticker")["sector"].sort_index()
-    pairs = sec.reset_index().merge(sec.reset_index(), on="sector", suffixes=("", "_n"))
+def sector_edges(stocks, level="sector"):
+    """Link every pair of stocks sharing `level` ("sector", or the finer "sub_industry")."""
+    sec = stocks.drop_duplicates("ticker").set_index("ticker")[level].sort_index()
+    pairs = sec.reset_index().merge(sec.reset_index(), on=level, suffixes=("", "_n"))
     pairs = pairs[pairs["ticker"] != pairs["ticker_n"]]
     return (pairs[["ticker", "ticker_n"]].rename(columns={"ticker_n": "neighbor"})
             .sort_values(["ticker", "neighbor"]).reset_index(drop=True))
 
 
-def corr_edges(returns, k=CORR_K, window=CORR_WINDOW, min_common=CORR_MIN_COMMON):
-    """Top-k correlation neighbors per ticker for each calendar month.
+def corr_edges(returns, k=CORR_K, window=CORR_WINDOW, min_common=CORR_MIN_COMMON, freq="M"):
+    """Top-k correlation neighbors per ticker for each calendar period (default: month).
 
-    The graph for a month is estimated on the `window` trading days before the
-    month's first trading day.
+    The graph for a period is estimated on the `window` trading days before the
+    period's first trading day. `freq` is a pandas period alias: "W", "M", "Q".
     """
     calendar = returns.index
     tickers = np.array(returns.columns)
-    first_days = calendar.to_series().groupby(calendar.to_period("M")).first()
+    first_days = calendar.to_series().groupby(calendar.to_period(freq)).first()
     out = []
     for month, d0 in first_days.items():
         pos = calendar.get_loc(d0)
@@ -67,31 +68,38 @@ def corr_edges(returns, k=CORR_K, window=CORR_WINDOW, min_common=CORR_MIN_COMMON
     return pd.DataFrame(out, columns=["month", "ticker", "neighbor", "corr", "rank"])
 
 
-def _adjacency(edges, tickers):
+def _adjacency(edges, tickers, weight_col=None):
+    """Adjacency matrix: 1 per edge, or max(edge[weight_col], 0) when weighting."""
     idx = {t: i for i, t in enumerate(tickers)}
     a = np.zeros((len(tickers), len(tickers)))
-    for t, n in zip(edges["ticker"], edges["neighbor"]):
+    w = np.ones(len(edges)) if weight_col is None else np.clip(edges[weight_col].to_numpy(), 0, None)
+    for t, n, x in zip(edges["ticker"], edges["neighbor"], w):
         if t in idx and n in idx:
-            a[idx[t], idx[n]] = 1.0
+            a[idx[t], idx[n]] = x
     return a
 
 
 def _neighbor_means(wide, adj, prefix):
     """wide: dict col -> (dates x tickers) values. Mean over neighbors that have a value."""
     avail = (~np.isnan(wide[HAR_COLS[0]].to_numpy())).astype(float)
-    den = avail @ adj.T
+    den = avail @ adj.T                      # total weight of neighbors that have data
+    n = avail @ (adj > 0).T                  # how many neighbors have data
     out = {}
     for col in HAR_COLS:
         vals = np.nan_to_num(wide[col].to_numpy())
         num = vals @ adj.T
         with np.errstate(invalid="ignore", divide="ignore"):
             out[f"{prefix}_{col}"] = np.where(den > 0, num / den, np.nan)
-    out[f"{prefix}_n"] = den
+    out[f"{prefix}_n"] = n
     return out
 
 
-def neighbor_features(rows, sec_edges, cor_edges):
-    """rows: compute_features output. Returns a (date, ticker)-keyed frame of neighbor means."""
+def neighbor_features(rows, sec_edges, cor_edges, freq="M", weight=None):
+    """rows: compute_features output. Returns a (date, ticker)-keyed frame of neighbor means.
+
+    `freq` must match the one used for cor_edges. `weight="corr"` weights correlation
+    neighbors by their correlation instead of equally.
+    """
     tickers = sorted(rows["ticker"].unique())
     wide = {c: rows.pivot(index="date", columns="ticker", values=c)[tickers] for c in HAR_COLS}
     dates = wide[HAR_COLS[0]].index
@@ -105,11 +113,11 @@ def neighbor_features(rows, sec_edges, cor_edges):
     cor = {c: np.full((len(dates), len(tickers)), np.nan) for c in cor_cols}
     cor["cor_n"][:] = 0.0
     for month, e in cor_edges.groupby("month"):
-        in_month = (dates >= month) & (dates < month + pd.offsets.MonthBegin(1))
+        in_month = dates.to_period(freq) == pd.Period(month, freq)
         if not in_month.any():
             continue
         sub = {c: w[in_month] for c, w in wide.items()}
-        for k, v in _neighbor_means(sub, _adjacency(e, tickers), "cor").items():
+        for k, v in _neighbor_means(sub, _adjacency(e, tickers, weight), "cor").items():
             cor[k][in_month] = v
     cor_df = {k: pd.DataFrame(v, index=dates, columns=tickers).stack(future_stack=True)
               for k, v in cor.items()}

@@ -89,3 +89,49 @@ def test_every_model_is_scored_on_identical_rows():
     out = bl.run(synth())
     n = out["metrics"].groupby("split")["n"].nunique()
     assert (n == 1).all()
+
+
+# ---- QLIKE-trained linear model ----
+
+def _lognormal_variance_data(n=20000, seed=0, sigma=0.8):
+    """True log-variance forecast z = b0 + x @ b; realized variance = exp(2z) * z_noise with mean 1."""
+    rng = np.random.default_rng(seed)
+    x = rng.normal(-4.5, 0.5, (n, 2))
+    z = -0.4 + x @ np.array([0.5, 0.3])
+    noise = np.exp(sigma * rng.normal(size=n) - sigma ** 2 / 2)            # mean exactly 1
+    v = np.exp(2 * z) * noise
+    return x, 0.5 * np.log(v), z
+
+
+def test_qlike_fit_recovers_the_variance_forecast_that_ols_gets_wrong():
+    x, y, z = _lognormal_variance_data()
+    b_q = bl.fit_qlike_linear(x, y)
+    b_ols = bl.fit_ols(x, y)
+    assert b_q == pytest.approx([-0.4, 0.5, 0.3], abs=0.05)                 # calibrated level
+    assert b_ols[0] < b_q[0] - 0.05                                          # OLS intercept is biased low
+
+
+def test_qlike_fit_has_lower_training_qlike_than_ols_with_smearing():
+    from metrics import qlike, smearing_factor
+    x, y, _ = _lognormal_variance_data(seed=1)
+    pq = bl.predict_ols(bl.fit_qlike_linear(x, y), x)
+    po = bl.predict_ols(bl.fit_ols(x, y), x)
+    assert qlike(y, pq) <= qlike(y, po, smearing_factor(y, po)) + 1e-12      # it is the QLIKE minimizer
+
+
+def test_qlike_gradient_matches_numerical_gradient():
+    # minimizer property: the objective cannot be lowered by nudging any coefficient
+    from metrics import qlike
+    x, y, _ = _lognormal_variance_data(n=5000, seed=2)
+    b = bl.fit_qlike_linear(x, y)
+    base = qlike(y, bl.predict_ols(b, x))
+    for i in range(len(b)):
+        for d in (1e-3, -1e-3):
+            b2 = b.copy(); b2[i] += d
+            assert qlike(y, bl.predict_ols(b2, x)) >= base - 1e-9
+
+
+def test_q_models_are_scored_and_need_no_smearing():
+    out = bl.run(synth())
+    assert {"har_q", "har_sector_q", "har_corr_q"} <= set(out["metrics"]["model"])
+    assert out["smear"]["har_q"] == 1.0

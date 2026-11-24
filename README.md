@@ -37,8 +37,28 @@ Run from the project root with the venv active:
 | 3 | `scripts/features.py` | `data/features/panel.parquet`, `winsor_bounds.json` |
 | 4 | `scripts/graphs.py` | `data/graphs/{sector,corr}_edges.parquet`, `data/features/neighbors.parquet` |
 | 5 | `scripts/baselines.py` | `results/baseline_*.csv`, `data/predictions/<model>.parquet` |
+| 6 | `scripts/trees.py` | `results/trees_*.csv`, `data/predictions/gbt*.parquet` |
+| 7 | `scripts/gnnhar.py` | `results/gnnhar*.csv`, `data/predictions/gnn_*.parquet`, `nn_own.parquet` |
+| clustering | `scripts/stock_clusters.py` | `results/stock_clusters.csv`, `cluster_quality.csv`, `cluster_summary.csv`, `cluster_pairs.csv` |
 
 Settings shared by all steps live in `scripts/config.py`.
+
+### Analysis scripts
+
+These test whether the neighbor gain comes from specific links or from the market-wide volatility
+level. All score **validation only**; the test years stay untouched. Each script states its decision
+rule in its docstring, and that rule was committed before the script was run.
+
+| Script | Question | Output |
+|---|---|---|
+| `scripts/sensitivity.py` | Do the untested design choices (graph window, refresh rate, neighbor count, weighting, winsorizing, pooled vs per-stock HAR) change the neighbor gain? | `results/sensitivity.csv` |
+| `scripts/placebo.py` | Does a market-wide average, or a random twin of each graph, do as well as the real graphs (linear HAR)? | `results/placebo.csv` |
+| `scripts/placebo_trees.py` | The same placebo with LightGBM | `results/placebo_trees.csv` |
+| `scripts/sector_check.py` | Does any single sector show a graph effect beyond the market? | `results/sector_check.csv` |
+| `scripts/sector_clustering.py` | Does volatility cluster within sectors beyond the market on the same day? (descriptive, 2010-2021 only) | `results/sector_clustering.csv`, `results/sector_episodes.csv` |
+| `scripts/own_history_test.py` | Is the sector's information redundant once the stock's own history is known? | `results/own_history.csv` |
+
+Arguable choices and what each experiment found are logged in `DECISIONS.md`.
 
 ## The data is a frozen snapshot
 
@@ -118,9 +138,12 @@ The test years are scored only with `--include-test`; run that once, at the end,
 | `har` | OLS on `har_1/5/22`, pooled across stocks |
 | `har_sector` | `har` + sector peers' averaged `har_*` |
 | `har_corr` | `har` + correlation neighbors' averaged `har_*` |
+| `har_q`, `har_sector_q`, `har_corr_q` | the same three linear models, trained to minimize QLIKE directly (no smearing) |
 
 - **Same rows for every model.** Fit and scored on rows where both neighbor feature sets
   exist (19,161 of 1,867,262 rows dropped), so differences come from the features only.
+- **QLIKE-trained HAR** (`har_q`) is only 0.8% better than OLS with smearing on validation (0.2866 vs 0.2888, p=0.015),
+  so the smearing correction is a good approximation for the linear models. Neighbor gains are unchanged on top of it.
 - **QLIKE** uses variance `exp(2*yhat)` rescaled by a training-set smearing factor, because a
   log-model forecasts the median variance, which sits below the mean. The unscaled number is
   kept as `qlike_raw`. MSE is on log volatility.
@@ -140,6 +163,131 @@ it is -2.5% (sector) and -1.9% (correlation), still significant (p < 0.001) but 
 On validation the fixed sector graph beats the correlation graph. Nothing is tuned yet, and
 the test years are untouched.
 
+## Gradient-boosted trees (`scripts/trees.py`)
+
+LightGBM on the same rows as the baselines. `gbt` uses `har_1/5/22`, return, volume change and
+VIX; `gbt_sector` and `gbt_corr` add the same neighbor features as the HAR models.
+`python scripts/trees.py` takes about 3 minutes; `--include-test` scores the test years (once, at the end).
+
+- **Tuning.** Each model gets the same 12-config grid (leaves, learning rate, min leaf size) with early
+  stopping on validation MSE. Unlike the baselines, **validation scores here are tuned on validation**,
+  so they are mildly optimistic; the test years are the clean number. All three models picked the
+  smallest trees (7 leaves, lr 0.03, min leaf 500). Widening the grid improved validation MSE by 0.06%,
+  so the choice is not a grid artefact.
+- **Over/underfitting.** `results/trees_curves.csv` has train and validation loss per boosting round.
+  Validation loss sits below training loss (probably a property of the 2020-2021 period, not checked),
+  and stops improving after a few hundred rounds, well before the 3,000-round limit; there is no sign of overfitting.
+
+Validation 2020-2021 (QLIKE, lower is better):
+
+| Model | QLIKE | vs HAR | MSE log-vol | DM p (vs row's control) |
+|---|---|---|---|---|
+| har | 0.2888 | | 0.1330 | |
+| gbt | 0.2744 | -5.0% | 0.1266 | 0.14 vs har |
+| har_sector | 0.2685 | -7.0% | 0.1240 | 0.012 vs har |
+| gbt_sector | 0.2694 | -6.7% | 0.1243 | 0.005 vs gbt; 0.80 vs har_sector |
+| har_corr | 0.2713 | -6.1% | 0.1251 | 0.021 vs har |
+| gbt_corr | 0.2693 | -6.7% | 0.1243 | 0.001 vs gbt; 0.61 vs har_corr |
+
+Reading: neighbors help trees too (significantly), but the trees do **not** beat the linear HAR with the
+same inputs. Nonlinearity adds little on top of HAR plus neighbors here. The QLIKE ranking between
+trees and HAR also depends on the variance correction: on uncorrected `qlike_raw` the neighbor trees are
+ahead of the matching HAR by 3-4%, on the corrected number they are level (+0.3% / -0.7%). Plain `gbt` beats
+`har` by 5% corrected, but it also has extra inputs (return, volume change, VIX), so the like-for-like
+comparisons are `gbt_sector` vs `har_sector` and `gbt_corr` vs `har_corr`. Treat tree-vs-HAR as a tie until
+the test years.
+
+## GNNHAR (`scripts/gnnhar.py`)
+
+One-layer GNNHAR after Zhang et al. (2025): HAR on the stock's own `har_1/5/22` plus one hidden ReLU
+layer over [own `har_*`, the neighbors' mean `har_*`]. With mean aggregation a day's graph layer is exactly
+that neighbor mean, so the networks see the same neighbor information as the linear and tree models.
+`python scripts/gnnhar.py` scores validation; `--include-test` scores the test years (once, at the end).
+
+| Model | Graph input |
+|---|---|
+| `nn_own` | none: the same network on own history only, to separate nonlinearity from graph information |
+| `gnn_sector`, `gnn_corr` | the real graphs |
+| `gnn_market` | every other stock (the placebo's market average) |
+| `gnn_market+sector`, `gnn_market+corr` | the graph on top of the market average |
+| `gnn_rand_sector_s*`, `gnn_rand_corr_s*` | random twins of the graphs (same neighbor counts), one per seed |
+
+- **Training.** QLIKE loss, inputs standardized on the training years, HAR part starting at the QLIKE-trained
+  linear fit. Epochs are chosen by early stopping on 2019 (fit on 2010-2018), then the model is refit on all
+  training years. Validation is never used to fit or tune, so it stays a clean score.
+- **Fixed, untuned architecture:** 16 hidden units, Adam lr 1e-3, batch 8192, at most 30 epochs, patience 3,
+  10 seeds averaged. The verdict rule is in the script's docstring and was written before running.
+- Runtime about 4 minutes on a laptop CPU. Early stopping picked 1 to 18 epochs.
+
+Validation 2020-2021 (QLIKE, lower is better; forecasts averaged over 10 seeds, each random twin is one graph and one seed):
+
+| Model | QLIKE | MSE log-vol | Linear counterpart (QLIKE) |
+|---|---|---|---|
+| nn_own | 0.2842 | 0.1448 | har_q 0.2866 |
+| gnn_sector | 0.2645 | 0.1373 | har_sector_q 0.2663 |
+| gnn_corr | 0.2668 | 0.1381 | har_corr_q 0.2689 |
+| gnn_market | 0.2616 | 0.1333 | |
+| gnn_market+sector | 0.2609 | 0.1338 | |
+| gnn_market+corr | 0.2605 | 0.1337 | |
+| gnn_rand_sector (10 twins) | 0.2620 to 0.2645 | | |
+| gnn_rand_corr (10 twins) | 0.2649 to 0.2674 | | |
+
+Comparisons (`results/gnnhar.csv`, DM test, negative = first model better):
+
+| Comparison | Change | DM p | Without Feb-Apr 2020 |
+|---|---|---|---|
+| nn_own vs har_q | -0.83% | 0.15 | -0.17% |
+| gnn_sector vs nn_own | -6.93% | 0.006 | -2.72% |
+| gnn_corr vs nn_own | -6.12% | 0.010 | -2.12% |
+| gnn_market vs nn_own | -7.95% | 0.002 | -3.63% |
+| gnn_sector vs har_sector_q | -0.69% | 0.008 | -0.35% |
+| gnn_corr vs har_corr_q | -0.77% | 0.013 | -0.34% |
+| gnn_sector vs gnn_market | +1.11% | 0.001 | +0.95% |
+| gnn_corr vs gnn_market | +1.99% | <0.001 | +1.57% |
+| gnn_market+sector vs gnn_market | -0.27% | 0.14 | -0.08% |
+| gnn_market+corr vs gnn_market | -0.43% | 0.11 | -0.09% |
+| gnn_sector vs its 10 random twins | -0.01% to +0.95% (mean +0.41%) | 0.0008 to 0.95 | +0.17% to +0.59% |
+| gnn_corr vs its 10 random twins | -0.22% to +0.72% (mean +0.23%) | 0.045 to 0.92 | -0.05% to +0.27% |
+
+Reading: the neural network repeats the linear placebo. Neighbors help a lot over own history alone, but the
+market average helps significantly more than either real graph (by 1.1% and 2.0%), and the real graphs are, if
+anything, *worse* than random twins: never better by more than 0.22%, and worse in 16 of 20 comparisons. This holds
+even though the comparison favors the real graphs (a 10-seed average against single-seed twins). On top of the market
+average the graphs add 0.27% and 0.43%, not significant, under 0.1% without COVID, and slightly worse on MSE. The
+pre-written verdict is **market-wide only** for both graphs. Without a graph the network is no better than linear
+HAR (p=0.15); with a graph it beats the linear model with the same inputs by under 1%.
+
+Seeds matter: a first run with 3 seeds gave a gain beyond the market of 0.84% and 0.92% (verdict "mixed"). With 10
+seeds it fell to 0.27% and 0.43%, so most of that gain was seed noise. Single seeds still differ by up to 2.3% QLIKE
+(gnn_market 0.2598 to 0.2657), which is why the average of many seeds is the number to read. Test years untouched.
+
+## Stock clustering (`scripts/stock_clusters.py`)
+
+Clusters stocks by how their volatility moves together **beyond the market**, on the training years only:
+each stock's daily log-vol is regressed on the mean of all other stocks that day, and stocks are clustered
+(average linkage) on 1 - correlation of those residuals. Compared with GICS sectors by adjusted Rand index
+and silhouette (sectors get a silhouette too, as a reference), plus pairs to inspect by hand: correlated
+cross-sector pairs that share a cluster, and same-sector pairs the clustering splits.
+Runs in about 5 seconds.
+
+Results (471 stocks with at least 500 training days, 2010-2019):
+
+- **Weak structure overall.** Silhouette is 0.04 to 0.06 for every k from 5 to 25, and 0.046 for the GICS sectors
+  themselves: neither the data-driven groups nor the sectors separate residual co-movement much. Agreement with the
+  sectors is low to moderate, ARI 0.18 to 0.26 (0.25 at k = 11).
+- **A few real groups** (k = 11, `results/cluster_summary.csv`), by mean residual correlation inside the cluster:
+  Utilities with Real Estate (52 stocks, 0.19), banks and asset managers (40, 0.16), managed care and hospitals
+  (CI, CNC, ELV, HUM, HCA and others, 11, 0.15), cable and media (CHTR, CMCSA, DIS, 4, 0.14), Energy with
+  materials and agriculture (41, 0.10). The two largest clusters (146 and 80 stocks, 10 sectors each) are catch-alls
+  with mean correlation 0.05.
+- **Pairs** (`results/cluster_pairs.csv`). Cross-sector pairs that share a cluster are economically sensible: oil
+  producers with copper (DVN, COP, APA with FCX, about 0.45), homebuilders with Masco (PHM, LEN, DHI, about 0.42),
+  AMZN with META (0.43). Same-sector pairs the clustering splits are negatively correlated after the market, for
+  example airlines vs GE (-0.20 to -0.24) and insurers vs Interactive Brokers.
+- This matches the same-day clustering finding (DECISIONS.md): co-movement beyond the market is concentrated in
+  Utilities, Real Estate and Energy, and small elsewhere; banks also stand out here. Descriptive only; groups named
+  after looking.
+
 ## Known limitations (for the report)
 
 - **Survivorship bias.** The universe is the November 2026 S&P 500 list. Firms that left
@@ -152,5 +300,5 @@ the test years are untouched.
 
 ## Layout
 
-- `scripts/`: the data pipeline, features and graphs
+- `scripts/`: the data pipeline, features, graphs, models (HAR, trees, GNNHAR) and analyses
 - `tests/`: unit tests (`pytest`)

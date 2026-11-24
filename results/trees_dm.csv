@@ -1,0 +1,11 @@
+split,model,vs,days,mean_qlike_diff,dm_stat,p_value,model_better
+val,har,naive,505,-0.19219183,-12.056158,1.7998444e-33,True
+val,har_sector,har,505,-0.020383865,-2.5019286,0.012351882,True
+val,har_corr,har,505,-0.017611362,-2.3092365,0.02093046,True
+val,har_corr,har_sector,505,0.0027725027,3.873342,0.00010735303,False
+val,gbt,har,505,-0.014488925,-1.4876427,0.13684514,True
+val,gbt_sector,gbt,505,-0.0049936089,-2.7780786,0.0054681392,True
+val,gbt_corr,gbt,505,-0.0051361011,-3.2774542,0.0010474773,True
+val,gbt_corr,gbt_sector,505,-0.00014249223,-0.11450238,0.90883956,True
+val,gbt_sector,har_sector,505,0.0009013307,0.25353554,0.7998544,False
+val,gbt_corr,har_corr,505,-0.0020136643,-0.50609446,0.61279034,True
